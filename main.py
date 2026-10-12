@@ -61,12 +61,28 @@ def truncate_url(url: str, head_len: int = 18, tail_len: int = 14) -> str:
         return url
     return f"{url[:head_len]}...{url[-tail_len:]}"
 
+# Ratio: e.g. 80 means 80% native, 20% others
+def parse_native_ratio(var_name: str, default_pct: float = 80.0) -> float:
+    raw = get_env(var_name)
+    if not raw:
+        return default_pct / 100.0
+    try:
+        if "," in raw:
+            val = float(raw.split(",")[0].strip())
+        else:
+            val = float(raw.strip())
+        if val > 1.0:
+            return min(1.0, max(0.0, val / 100.0))
+        return min(1.0, max(0.0, val))
+    except Exception:
+        return default_pct / 100.0
+
 
 # =========================================================
-# MANUAL USER AGENT POOLS (STRICT OS & BROWSER MATCHING)
+# MANUAL USER AGENT POOLS (AUTHENTIC TOKENS LINE BY LINE)
 # =========================================================
 
-# --- WINDOWS CHROME (65% High, 25% Mid, 10% Low) ---
+# --- WINDOWS CHROME (Native to Windows/PC) ---
 WIN_CHROME_HIGH = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
@@ -100,7 +116,7 @@ WIN_CHROME_LOW = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
 ]
 
-# --- WINDOWS EDGE ---
+# --- WINDOWS EDGE (Microsoft Native) ---
 WIN_EDGE_HIGH = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36 Edg/153.0.0.0",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36 Edg/152.0.0.0",
@@ -169,6 +185,26 @@ WIN_OPERA_LOW = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 OPR/91.0.0.0",
 ]
 
+# --- MACOS SAFARI (Apple Native) ---
+MAC_SAFARI_HIGH = [
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3 Safari/605.1.15",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Safari/605.1.15",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Safari/605.1.15",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",
+]
+MAC_SAFARI_MID = [
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+]
+MAC_SAFARI_LOW = [
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Safari/605.1.15",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.4 Safari/605.1.15",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.6 Safari/605.1.15",
+]
+
 # --- MACOS CHROME ---
 MAC_CHROME_HIGH = [
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
@@ -188,26 +224,6 @@ MAC_CHROME_LOW = [
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
-]
-
-# --- MACOS SAFARI ---
-MAC_SAFARI_HIGH = [
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3 Safari/605.1.15",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Safari/605.1.15",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Safari/605.1.15",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",
-]
-MAC_SAFARI_MID = [
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
-]
-MAC_SAFARI_LOW = [
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Safari/605.1.15",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.4 Safari/605.1.15",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.6 Safari/605.1.15",
 ]
 
 # --- MACOS FIREFOX ---
@@ -239,7 +255,7 @@ MAC_OPERA_ALL = [
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 OPR/98.0.0.0",
 ]
 
-# --- LINUX CHROME ---
+# --- LINUX CHROME / FIREFOX ---
 LINUX_CHROME_HIGH = [
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
@@ -258,8 +274,6 @@ LINUX_CHROME_LOW = [
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
 ]
-
-# --- LINUX FIREFOX ---
 LINUX_FF_HIGH = [
     "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:152.0) Gecko/20100101 Firefox/152.0",
     "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:149.0) Gecko/20100101 Firefox/149.0",
@@ -277,17 +291,13 @@ LINUX_FF_LOW = [
     "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0",
     "Mozilla/5.0 (X11; Linux x86_64; rv:125.0) Gecko/20100101 Firefox/125.0",
 ]
-
-# --- LINUX OPERA ---
 LINUX_OPERA_ALL = [
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 OPR/114.0.0.0",
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 OPR/110.0.0.0",
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 OPR/106.0.0.0",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36 OPR/102.0.0.0",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 OPR/96.0.0.0",
 ]
 
-# --- IOS SAFARI (Strict iOS Handheld) ---
+# --- IOS SAFARI (Apple Mobile Native) ---
 IOS_SAFARI_HIGH = [
     "Mozilla/5.0 (iPhone; CPU iPhone OS 18_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3 Mobile/15E148 Safari/604.1",
     "Mozilla/5.0 (iPhone; CPU iPhone OS 18_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Mobile/15E148 Safari/604.1",
@@ -307,7 +317,7 @@ IOS_SAFARI_LOW = [
     "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1",
 ]
 
-# --- IOS CHROME (CriOS) ---
+# --- IOS SECONDARY (CriOS, FxiOS, OPT) ---
 IOS_CHROME_HIGH = [
     "Mozilla/5.0 (iPhone; CPU iPhone OS 18_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/152.0.0.0 Mobile/15E148 Safari/604.1",
     "Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/150.0.0.0 Mobile/15E148 Safari/604.1",
@@ -326,25 +336,19 @@ IOS_CHROME_LOW = [
     "Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/128.0.0.0 Mobile/15E148 Safari/604.1",
     "Mozilla/5.0 (iPhone; CPU iPhone OS 16_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/125.0.0.0 Mobile/15E148 Safari/604.1",
 ]
-
-# --- IOS FIREFOX (FxiOS) & OPERA ---
 IOS_FF_ALL = [
     "Mozilla/5.0 (iPhone; CPU iPhone OS 18_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/150.0 Mobile/15E148 Safari/604.1",
     "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/146.0 Mobile/15E148 Safari/604.1",
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/142.0 Mobile/15E148 Safari/604.1",
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/138.0 Mobile/15E148 Safari/604.1",
-    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/134.0 Mobile/15E148 Safari/604.1",
-    "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/128.0 Mobile/15E148 Safari/604.1",
 ]
 IOS_OPERA_ALL = [
     "Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) OPT/5.2.0 Mobile/15E148 Safari/604.1",
     "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) OPT/5.0.0 Mobile/15E148 Safari/604.1",
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) OPT/4.8.0 Mobile/15E148 Safari/604.1",
-    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) OPT/4.4.0 Mobile/15E148 Safari/604.1",
-    "Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) OPT/4.0.0 Mobile/15E148 Safari/604.1",
 ]
 
-# --- ANDROID CHROME (Strict Mobile Safari Formats) ---
+# --- ANDROID CHROME (Google Android Native) ---
 ANDROID_CHROME_HIGH = [
     "Mozilla/5.0 (Linux; Android 15; Pixel 9 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Mobile Safari/537.36",
     "Mozilla/5.0 (Linux; Android 15; SM-S938B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Mobile Safari/537.36",
@@ -411,7 +415,7 @@ ANDROID_FF_ALL = [
     "Mozilla/5.0 (Android 11; Mobile; rv:128.0) Gecko/128.0 Firefox/128.0",
 ]
 
-# --- ANDROID OPERA (Strict Handheld Opera Mobile Token) ---
+# --- ANDROID OPERA (Strict Handheld Mobile Token) ---
 ANDROID_OPERA_ALL = [
     "Mozilla/5.0 (Linux; Android 15; SM-S938B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36 OPR/88.0.0.0",
     "Mozilla/5.0 (Linux; Android 14; SM-S928B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Mobile Safari/537.36 OPR/86.0.0.0",
@@ -520,12 +524,13 @@ def parse_nested_device_spec(spec_str: str) -> dict:
             tree[cat][os_name] = browsers
 
     if not tree or not any(tree.values()):
-        tree = {"mobile": {"android": ["firefox", "chrome"]}}
+        tree = {"mobile": {"android": ["chrome", "firefox"]}}
 
     return tree
 
 RAW_DEVICE_SPEC = get_env("DEVICE_TYPE", "desktop,mobile")
 DEVICE_TREE = parse_nested_device_spec(RAW_DEVICE_SPEC)
+NATIVE_RATIO = parse_native_ratio("BROWSER_NATIVE_RATIO", default_pct=80.0)
 
 
 # ---------------------------------------------------------
@@ -568,6 +573,37 @@ if CUSTOM_DESKTOP_UAS:
     validate_ua_entries(CUSTOM_DESKTOP_UAS, "desktop")
 if CUSTOM_MOBILE_UAS:
     validate_ua_entries(CUSTOM_MOBILE_UAS, "mobile")
+
+
+# ---------------------------------------------------------
+# Native Browser Weighted Resolver
+# ---------------------------------------------------------
+NATIVE_BROWSER_MAP = {
+    "ios": "safari",
+    "android": "chrome",
+    "windows": "chrome",
+    "mac": "safari",
+    "macos": "safari",
+    "linux": "chrome"
+}
+
+def pick_browser_for_os(os_name: str, allowed_browsers: list, native_pct: float) -> str:
+    if len(allowed_browsers) == 1:
+        return allowed_browsers[0]
+
+    native_name = NATIVE_BROWSER_MAP.get(os_name, "")
+    
+    # If the native browser is in the user's allowed list
+    if native_name and native_name in allowed_browsers:
+        other_browsers = [b for b in allowed_browsers if b != native_name]
+        if other_browsers and random.random() < native_pct:
+            return native_name
+        elif other_browsers:
+            return random.choice(other_browsers)
+        return native_name
+
+    # If native not allowed or not specified, choose uniformly from configured
+    return random.choice(allowed_browsers)
 
 
 # ---------------------------------------------------------
@@ -647,11 +683,13 @@ def resolve_cycle_ua(used_uas_in_cycle: set) -> tuple:
 
     sub_os_dict = DEVICE_TREE.get(cat, {})
     if not sub_os_dict:
-        sub_os_dict = {"android": ["firefox"]} if cat == "mobile" else {"windows": ["chrome"]}
+        sub_os_dict = {"android": ["chrome"]} if cat == "mobile" else {"windows": ["chrome"]}
 
     chosen_os = random.choice(list(sub_os_dict.keys()))
-    browsers = sub_os_dict.get(chosen_os, [])
-    chosen_browser = random.choice(browsers) if browsers else ("firefox" if chosen_os == "android" else "chrome")
+    allowed_browsers = sub_os_dict.get(chosen_os, ["chrome"])
+    
+    # Select browser according to 80% native vs other rule
+    chosen_browser = pick_browser_for_os(chosen_os, allowed_browsers, NATIVE_RATIO)
 
     ua, label = "", ""
     for _ in range(15):
@@ -964,10 +1002,17 @@ def execute_bot(bot_id: int, total_bots: int, target_url: str, slug: str, ltype:
         params["premium"] = "true"
 
     url = f"http://api.scraperapi.com?{urllib.parse.urlencode(params)}"
+    
+    # Accurate browser client hints to prevent platforms flagging desktop
     headers = {
         "User-Agent": selected_ua,
         "Connection": "close"
     }
+    if selected_cat == "mobile":
+        headers["Sec-CH-UA-Mobile"] = "?1"
+        headers["Sec-CH-UA-Platform"] = '"Android"' if "Android" in selected_ua else '"iOS"'
+    else:
+        headers["Sec-CH-UA-Mobile"] = "?0"
 
     chosen_referrer = random.choice(REFERRERS)
     if chosen_referrer and chosen_referrer.lower() not in ("none", "direct", "empty"):
@@ -1025,6 +1070,7 @@ def main():
     print(f"Residential Proxies     : {'ENABLED (premium=true)' if RESIDENTIAL else 'DISABLED (Standard DataCenter)'}")
     print(f"Est. Credits Per Hit    : ~{calculate_credits(BROWSER_RENDERING, RESIDENTIAL)} credits")
     print(f"Active Device Hierarchy : {DEVICE_TREE}")
+    print(f"Native Browser Weight   : {int(NATIVE_RATIO * 100)}% Native / {int((1.0 - NATIVE_RATIO) * 100)}% Others")
     print(f"Post-Response Cooldown  : {POST_WAIT_MIN:.1f}s - {POST_WAIT_MAX:.1f}s")
     print(f"Worker Gap Interval     : {GAP_MIN:.1f}s - {GAP_MAX:.1f}s")
     print(f"Cycle Interval Range    : {CYCLE_MIN:.1f}s - {CYCLE_MAX:.1f}s")
