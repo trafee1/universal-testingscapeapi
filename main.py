@@ -431,11 +431,10 @@ def sample_weighted_browser(high_list, mid_list, low_list):
 
 
 # ---------------------------------------------------------
-# Robust Nested DEVICE_TYPE Parser (Recursive Block Tokenizer)
+# AST-Style Robust Nested Parser for DEVICE_TYPE
 # ---------------------------------------------------------
-def parse_block_contents(s: str) -> list:
-    """Extracts comma-delimited tokens while respecting balanced { } brackets."""
-    items = []
+def split_balanced_commas(s: str) -> list:
+    tokens = []
     depth = 0
     buf = []
     for ch in s:
@@ -448,62 +447,54 @@ def parse_block_contents(s: str) -> list:
         elif ch == ',' and depth == 0:
             token = "".join(buf).strip()
             if token:
-                items.append(token)
+                tokens.append(token)
             buf = []
         else:
             buf.append(ch)
     last = "".join(buf).strip()
     if last:
-        items.append(last)
-    return items
+        tokens.append(last)
+    return tokens
 
 def parse_nested_device_spec(spec_str: str) -> dict:
     spec_str = spec_str.strip()
-    tree = {}
     if not spec_str:
         return {
             "mobile": {"android": ["chrome", "samsung", "firefox", "opera"], "ios": ["safari", "chrome", "firefox", "opera"]},
             "desktop": {"windows": ["chrome", "edge", "firefox", "opera"], "mac": ["safari", "chrome", "firefox", "opera"], "linux": ["chrome", "firefox", "opera"]}
         }
 
-    top_tokens = parse_block_contents(spec_str)
-    for token in top_tokens:
-        token = token.strip()
-        if not token:
-            continue
+    tree = {}
+    top_entries = split_balanced_commas(spec_str)
 
-        if "{" in token and token.endswith("}"):
-            cat = token[:token.index("{")].strip().lower()
-            inner = token[token.index("{") + 1:-1].strip()
+    for entry in top_entries:
+        if "{" in entry and entry.endswith("}"):
+            cat = entry[:entry.index("{")].strip().lower()
+            cat_body = entry[entry.index("{") + 1:-1].strip()
         else:
-            cat = token.lower()
-            inner = ""
+            cat = entry.strip().lower()
+            cat_body = ""
 
         if cat not in ("mobile", "desktop"):
             continue
 
         tree[cat] = {}
 
-        if not inner:
+        if not cat_body:
             if cat == "mobile":
                 tree[cat] = {"android": ["chrome", "samsung", "firefox", "opera"], "ios": ["safari", "chrome", "firefox", "opera"]}
             else:
                 tree[cat] = {"windows": ["chrome", "edge", "firefox", "opera"], "mac": ["safari", "chrome", "firefox", "opera"], "linux": ["chrome", "firefox", "opera"]}
             continue
 
-        # Parse OS-level structures inside the device category
-        os_tokens = parse_block_contents(inner)
-        for os_tok in os_tokens:
-            os_tok = os_tok.strip()
-            if not os_tok:
-                continue
-
-            if "{" in os_tok and os_tok.endswith("}"):
-                os_name = os_tok[:os_tok.index("{")].strip().lower()
-                browser_inner = os_tok[os_tok.index("{") + 1:-1].strip()
-                browsers = [b.strip().lower() for b in browser_inner.split(",") if b.strip()]
+        os_entries = split_balanced_commas(cat_body)
+        for os_entry in os_entries:
+            if "{" in os_entry and os_entry.endswith("}"):
+                os_name = os_entry[:os_entry.index("{")].strip().lower()
+                browser_body = os_entry[os_entry.index("{") + 1:-1].strip()
+                browsers = [b.strip().lower() for b in split_balanced_commas(browser_body) if b.strip()]
             else:
-                os_name = os_tok.lower()
+                os_name = os_entry.strip().lower()
                 browsers = []
 
             if not browsers:
@@ -522,18 +513,8 @@ def parse_nested_device_spec(spec_str: str) -> dict:
 
             tree[cat][os_name] = browsers
 
-    # Absolute safety fallback if string had unexpected syntax
     if not tree or not any(tree.values()):
-        print("[CRITICAL] Could not parse DEVICE_TYPE syntax. Using default safe configuration.")
-        tree = {"mobile": {"android": ["chrome", "samsung", "firefox"]}}
-
-    # Ensure every category has at least one valid OS mapped
-    for c in list(tree.keys()):
-        if not tree[c]:
-            if c == "mobile":
-                tree[c] = {"android": ["chrome", "samsung", "firefox"]}
-            else:
-                tree[c] = {"windows": ["chrome", "edge", "firefox"]}
+        tree = {"mobile": {"android": ["firefox", "chrome"]}}
 
     return tree
 
@@ -558,7 +539,7 @@ def validate_ua_entries(uas: list, expected_scope: str):
                 print(" [PINNED CRITICAL ERROR] INVALID USER-AGENT CONFLICT!")
                 print(f" Item #{idx} in MOBILE_USER_AGENTS has DESKTOP signatures:")
                 print(f" String: {ua}")
-                print(" Execution terminated to prevent dirty platform mismatching.")
+                print(" Execution terminated to prevent platform header corruption.")
                 print("#" * 70 + "\n")
                 sys.exit(1)
 
@@ -569,7 +550,7 @@ def validate_ua_entries(uas: list, expected_scope: str):
                 print(" [PINNED CRITICAL ERROR] INVALID USER-AGENT CONFLICT!")
                 print(f" Item #{idx} in DESKTOP_USER_AGENTS has MOBILE signatures:")
                 print(f" String: {ua}")
-                print(" Execution terminated to prevent dirty platform mismatching.")
+                print(" Execution terminated to prevent platform header corruption.")
                 print("#" * 70 + "\n")
                 sys.exit(1)
 
@@ -584,52 +565,51 @@ if CUSTOM_MOBILE_UAS:
 
 
 # ---------------------------------------------------------
-# Isolated UA Resolver (100% Strict Category Isolation)
+# Isolated UA Resolver (Strict Category Guarantees)
 # ---------------------------------------------------------
 def get_ua_for_selection(category: str, os_name: str, browser: str) -> tuple:
-    # 1. User manual override lists
     if category == "mobile" and CUSTOM_MOBILE_UAS:
         return random.choice(CUSTOM_MOBILE_UAS), "Custom:Mobile"
     if category == "desktop" and CUSTOM_DESKTOP_UAS:
         return random.choice(CUSTOM_DESKTOP_UAS), "Custom:Desktop"
 
-    # 2. Strict MOBILE Branch (Will never touch Desktop strings)
+    # Strict Mobile Branch
     if category == "mobile":
         if os_name == "android":
-            if browser == "chrome":
-                return sample_weighted_browser(ANDROID_CHROME_HIGH, ANDROID_CHROME_MID, ANDROID_CHROME_LOW), "Android:Chrome"
+            if browser == "firefox":
+                return random.choice(ANDROID_FF_ALL), "Android:Firefox"
             elif browser == "samsung":
                 return sample_weighted_browser(ANDROID_SAMSUNG_HIGH, ANDROID_SAMSUNG_MID, ANDROID_SAMSUNG_LOW), "Android:Samsung"
-            elif browser == "firefox":
-                return random.choice(ANDROID_FF_ALL), "Android:Firefox"
             elif browser == "opera":
                 return random.choice(ANDROID_OPERA_ALL), "Android:Opera"
-            return sample_weighted_browser(ANDROID_CHROME_HIGH, ANDROID_CHROME_MID, ANDROID_CHROME_LOW), "Android:Chrome"
+            elif browser == "chrome":
+                return sample_weighted_browser(ANDROID_CHROME_HIGH, ANDROID_CHROME_MID, ANDROID_CHROME_LOW), "Android:Chrome"
+            return random.choice(ANDROID_FF_ALL), "Android:Firefox"
 
         elif os_name == "ios":
-            if browser == "chrome":
-                return sample_weighted_browser(IOS_CHROME_HIGH, IOS_CHROME_MID, IOS_CHROME_LOW), "iOS:Chrome"
-            elif browser == "firefox":
+            if browser == "firefox":
                 return random.choice(IOS_FF_ALL), "iOS:Firefox"
+            elif browser == "chrome":
+                return sample_weighted_browser(IOS_CHROME_HIGH, IOS_CHROME_MID, IOS_CHROME_LOW), "iOS:Chrome"
             elif browser == "opera":
                 return random.choice(IOS_OPERA_ALL), "iOS:Opera"
             elif browser == "safari":
                 return sample_weighted_browser(IOS_SAFARI_HIGH, IOS_SAFARI_MID, IOS_SAFARI_LOW), "iOS:Safari"
             return sample_weighted_browser(IOS_SAFARI_HIGH, IOS_SAFARI_MID, IOS_SAFARI_LOW), "iOS:Safari"
 
-        return sample_weighted_browser(ANDROID_CHROME_HIGH, ANDROID_CHROME_MID, ANDROID_CHROME_LOW), "Android:Chrome"
+        return random.choice(ANDROID_FF_ALL), "Android:Firefox"
 
-    # 3. Strict DESKTOP Branch (Will never touch Mobile strings)
+    # Strict Desktop Branch
     if category == "desktop":
         if os_name == "windows":
-            if browser == "chrome":
-                return sample_weighted_browser(WIN_CHROME_HIGH, WIN_CHROME_MID, WIN_CHROME_LOW), "Win:Chrome"
+            if browser == "firefox":
+                return sample_weighted_browser(WIN_FF_HIGH, WIN_FF_MID, WIN_FF_LOW), "Win:Firefox"
             elif browser == "edge":
                 return sample_weighted_browser(WIN_EDGE_HIGH, WIN_EDGE_MID, WIN_EDGE_LOW), "Win:Edge"
-            elif browser == "firefox":
-                return sample_weighted_browser(WIN_FF_HIGH, WIN_FF_MID, WIN_FF_LOW), "Win:Firefox"
             elif browser == "opera":
                 return sample_weighted_browser(WIN_OPERA_HIGH, WIN_OPERA_MID, WIN_OPERA_LOW), "Win:Opera"
+            elif browser == "chrome":
+                return sample_weighted_browser(WIN_CHROME_HIGH, WIN_CHROME_MID, WIN_CHROME_LOW), "Win:Chrome"
             return sample_weighted_browser(WIN_CHROME_HIGH, WIN_CHROME_MID, WIN_CHROME_LOW), "Win:Chrome"
 
         elif os_name in ("mac", "macos"):
@@ -652,22 +632,20 @@ def get_ua_for_selection(category: str, os_name: str, browser: str) -> tuple:
 
         return sample_weighted_browser(WIN_CHROME_HIGH, WIN_CHROME_MID, WIN_CHROME_LOW), "Win:Chrome"
 
-    return sample_weighted_browser(ANDROID_CHROME_HIGH, ANDROID_CHROME_MID, ANDROID_CHROME_LOW), "Android:Chrome"
+    return sample_weighted_browser(WIN_CHROME_HIGH, WIN_CHROME_MID, WIN_CHROME_LOW), "Win:Chrome"
 
 
 def resolve_cycle_ua(used_uas_in_cycle: set) -> tuple:
-    categories = list(DEVICE_TREE.keys())
-    cat = random.choice(categories) if categories else "mobile"
+    cats = list(DEVICE_TREE.keys())
+    cat = random.choice(cats) if cats else "mobile"
 
     sub_os_dict = DEVICE_TREE.get(cat, {})
     if not sub_os_dict:
-        sub_os_dict = {"android": ["chrome"]} if cat == "mobile" else {"windows": ["chrome"]}
+        sub_os_dict = {"android": ["firefox"]} if cat == "mobile" else {"windows": ["chrome"]}
 
-    os_choices = list(sub_os_dict.keys())
-    chosen_os = random.choice(os_choices) if os_choices else ("android" if cat == "mobile" else "windows")
-
-    browser_choices = sub_os_dict.get(chosen_os, [])
-    chosen_browser = random.choice(browser_choices) if browser_choices else "chrome"
+    chosen_os = random.choice(list(sub_os_dict.keys()))
+    browsers = sub_os_dict.get(chosen_os, [])
+    chosen_browser = random.choice(browsers) if browsers else ("firefox" if chosen_os == "android" else "chrome")
 
     ua, label = "", ""
     for _ in range(15):
@@ -964,19 +942,26 @@ def execute_bot(bot_id: int, total_bots: int, target_url: str, slug: str, ltype:
     expected_credits = calculate_credits(BROWSER_RENDERING, RESIDENTIAL)
     truncated_target = truncate_url(target_url, head_len=18, tail_len=14)
 
+    # ScraperAPI unique rotation seed to prevent IP sticking
+    rotation_seed = random.randint(1000000, 9999999)
+
     params = {
         "api_key": key_obj.token,
         "device_type": selected_cat,
         "country_code": code,
         "render": BROWSER_RENDERING,
         "keep_headers": "true",
+        "session_number": str(rotation_seed),
         "url": target_url
     }
     if RESIDENTIAL:
         params["premium"] = "true"
 
     url = f"http://api.scraperapi.com?{urllib.parse.urlencode(params)}"
-    headers = {"User-Agent": selected_ua}
+    headers = {
+        "User-Agent": selected_ua,
+        "Connection": "close"
+    }
 
     chosen_referrer = random.choice(REFERRERS)
     if chosen_referrer and chosen_referrer.lower() not in ("none", "direct", "empty"):
@@ -1009,7 +994,6 @@ def execute_bot(bot_id: int, total_bots: int, target_url: str, slug: str, ltype:
     except Exception as ex:
         print(f"[Bot-{bot_id}] [{key_obj.tag}] [Target: {truncated_target}] [Credits: 0] [CLIENT ERROR]: {str(ex)}")
 
-    # Additive cooldown: Post-response delay + staggered gap
     post_wait = random.uniform(POST_WAIT_MIN, POST_WAIT_MAX)
     gap_wait = random.uniform(GAP_MIN, GAP_MAX)
     time.sleep(post_wait + gap_wait)
