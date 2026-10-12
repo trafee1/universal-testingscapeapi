@@ -756,21 +756,13 @@ OFFICIAL_STANDARD_SCRAPERAPI = {
 # Default T1 / T2 / T3 structure preserved when no manual COUNTRY variable is set
 DEFAULT_TIER_TABLE = {
     "T1": [
-        ("FR", "fr", "France"), ("DE", "de", "Germany"), ("NL", "nl", "Netherlands"),
-        ("ES", "es", "Spain"), ("IT", "it", "Italy"), ("PL", "pl", "Poland"),
-        ("SE", "se", "Sweden"), ("BR", "br", "Brazil"), ("KR", "kr", "South Korea"),
-        ("TR", "tr", "Turkey"), ("VN", "vn", "Vietnam"), ("ID", "id", "Indonesia"),
-        ("CA", "ca", "Canada"), ("JP", "jp", "Japan"), ("CH", "ch", "Switzerland")
+        ("CH", "ch", "Switzerland")
     ],
     "T2": [
-        ("US", "us", "United States"), ("GB", "gb", "United Kingdom"),
-        ("CZ", "cz", "Czech Republic"), ("RO", "ro", "Romania"),
-        ("AE", "ae", "United Arab Emirates"), ("MX", "mx", "Mexico"),
-        ("TH", "th", "Thailand"), ("PH", "ph", "Philippines")
+        ("AT", "ay", "austria")
     ],
     "T3": [
-        ("IN", "in", "India"), ("SA", "sa", "Saudi Arabia"),
-        ("HK", "hk", "Hong Kong"), ("TW", "tw", "Taiwan")
+        ("AT", "ay", "austria")
     ]
 }
 
