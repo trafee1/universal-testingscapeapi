@@ -716,7 +716,7 @@ TIER_TABLE = {
         ("AE", "ae"), ("MX", "mx"), ("TH", "th"), ("PH", "ph")
     ],
     "T3": [
-         ("SA", "sa"), ("HK", "hk"), ("TW", "tw")
+         ("SA", "sa"), ("HK", "hk"), ("TW", "tw"), ("DE", "de") , ("AT", "at")
     ]
 }
 
