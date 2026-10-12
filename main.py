@@ -682,6 +682,8 @@ def resolve_cycle_ua(used_uas_in_cycle: set) -> tuple:
 
     chosen_os = random.choice(list(sub_os_dict.keys()))
     allowed_browsers = sub_os_dict.get(chosen_os, ["chrome"])
+    
+    # Select browser according to 80% native vs other rule
     chosen_browser = pick_browser_for_os(chosen_os, allowed_browsers, NATIVE_RATIO)
 
     ua, label = "", ""
@@ -697,7 +699,7 @@ def resolve_cycle_ua(used_uas_in_cycle: set) -> tuple:
 # =========================================================
 # OFFICIAL SCRAPERAPI STANDARD MASTER GEOS & TIER DEFAULTS
 # =========================================================
-# The official 50 Standard Geotargeting countries supported on all basic/standard keys
+# Official 50 Standard Geotargeting countries supported on all basic/standard keys
 OFFICIAL_STANDARD_SCRAPERAPI = {
     "us": "United States", "gb": "United Kingdom", "uk": "United Kingdom",
     "ca": "Canada", "de": "Germany", "fr": "France", "es": "Spain",
@@ -718,17 +720,21 @@ OFFICIAL_STANDARD_SCRAPERAPI = {
 # Default T1 / T2 / T3 structure preserved when no manual COUNTRY variable is set
 DEFAULT_TIER_TABLE = {
     "T1": [
-        ("FR", "fr"), ("DE", "de"), ("NL", "nl"), ("ES", "es"),
-        ("IT", "it"), ("PL", "pl"), ("SE", "se"), ("BR", "br"),
-        ("KR", "kr"), ("TR", "tr"), ("VN", "vn"), ("ID", "id"),
-        ("CA", "ca"), ("JP", "jp"), ("SG", "sg")
+        ("FR", "fr", "France"), ("DE", "de", "Germany"), ("NL", "nl", "Netherlands"),
+        ("ES", "es", "Spain"), ("IT", "it", "Italy"), ("PL", "pl", "Poland"),
+        ("SE", "se", "Sweden"), ("BR", "br", "Brazil"), ("KR", "kr", "South Korea"),
+        ("TR", "tr", "Turkey"), ("VN", "vn", "Vietnam"), ("ID", "id", "Indonesia"),
+        ("CA", "ca", "Canada"), ("JP", "jp", "Japan"), ("SG", "sg", "Singapore")
     ],
     "T2": [
-        ("US", "us"), ("GB", "gb"), ("CZ", "cz"), ("RO", "ro"),
-        ("AE", "ae"), ("MX", "mx"), ("TH", "th"), ("PH", "ph")
+        ("US", "us", "United States"), ("GB", "gb", "United Kingdom"),
+        ("CZ", "cz", "Czech Republic"), ("RO", "ro", "Romania"),
+        ("AE", "ae", "United Arab Emirates"), ("MX", "mx", "Mexico"),
+        ("TH", "th", "Thailand"), ("PH", "ph", "Philippines")
     ],
     "T3": [
-        ("IN", "in"), ("SA", "sa"), ("HK", "hk"), ("TW", "tw")
+        ("IN", "in", "India"), ("SA", "sa", "Saudi Arabia"),
+        ("HK", "hk", "Hong Kong"), ("TW", "tw", "Taiwan")
     ]
 }
 
@@ -790,8 +796,8 @@ def parse_and_validate_country_config(raw_cfg: str):
     if not is_custom_configured:
         # Default behavior: T1 (50%), T2 (35%), T3 (15%)
         for tier, pairs in DEFAULT_TIER_TABLE.items():
-            for code_upper, code_lower in pairs:
-                filtered_tiers[tier].append((tier, code_upper, code_lower))
+            for code_upper, code_lower, c_name in pairs:
+                filtered_tiers[tier].append((tier, code_upper, code_lower, c_name))
     else:
         # Manual variable configuration: Allow all 50 official Standard ScraperAPI locations
         for code, name in OFFICIAL_STANDARD_SCRAPERAPI.items():
@@ -799,13 +805,13 @@ def parse_and_validate_country_config(raw_cfg: str):
                 continue
             if inc_raw and code not in inc_raw:
                 continue
-            custom_flat_pool.append(("STD", code.upper(), code))
+            custom_flat_pool.append(("STD", code.upper(), code, name))
 
         if not custom_flat_pool:
             print("\n" + "!" * 70)
             print(" [WARN] No valid countries remaining after filter. Defaulting to US (us).")
             print("!" * 70 + "\n")
-            custom_flat_pool = [("STD", "US", "us")]
+            custom_flat_pool = [("STD", "US", "us", "United States")]
 
     return inc_raw, exc_raw, unsupported_codes, is_custom_configured, filtered_tiers, custom_flat_pool
 
@@ -813,41 +819,42 @@ RAW_COUNTRY_CONF = get_env("COUNTRY", get_env("COUNTRIES", ""))
 INC_COUNTRIES, EXC_COUNTRIES, INVALID_INPUT_COUNTRIES, IS_CUSTOM_CONFIGURED, FILTERED_TIERS, CUSTOM_FLAT_POOL = parse_and_validate_country_config(RAW_COUNTRY_CONF)
 
 def print_pinned_country_diagnostic():
-    print("=" * 78)
+    print("=" * 80)
     print("           PINNED SCRAPERAPI STANDARD GEOTARGETING AUDIT")
-    print("=" * 78)
+    print("=" * 80)
     if IS_CUSTOM_CONFIGURED:
-        inc_disp = ", ".join(sorted(list(INC_COUNTRIES))) if INC_COUNTRIES else "ALL STANDARD"
-        exc_disp = ", ".join(sorted(list(EXC_COUNTRIES))) if EXC_COUNTRIES else "NONE"
+        inc_disp = ", ".join([f"{c.upper()} ({OFFICIAL_STANDARD_SCRAPERAPI.get(c, 'Custom')})" for c in sorted(list(INC_COUNTRIES))]) if INC_COUNTRIES else "ALL STANDARD"
+        exc_disp = ", ".join([f"{c.upper()} ({OFFICIAL_STANDARD_SCRAPERAPI.get(c, 'Custom')})" for c in sorted(list(EXC_COUNTRIES))]) if EXC_COUNTRIES else "NONE"
         inv_disp = ", ".join(sorted(list(INVALID_INPUT_COUNTRIES))) if INVALID_INPUT_COUNTRIES else "NONE"
-        active_codes = [c[2] for c in CUSTOM_FLAT_POOL]
+        active_items = [f"{c[1]} ({c[3]})" for c in CUSTOM_FLAT_POOL]
         print(f"  * Mode                       : CUSTOM OVERRIDE (COUNTRY variable active)")
         print(f"  * Configured Included Filter : {inc_disp}")
         print(f"  * Configured Excluded Filter : {exc_disp}")
         print(f"  * Rejected / Non-Standard    : {inv_disp}")
         print(f"  * Total Active Rotation Pool : {len(CUSTOM_FLAT_POOL)} locations")
-        print(f"  * Active Rotation Codes      : {', '.join(sorted(active_codes))}")
+        print(f"  * Active Rotation Pool       : {', '.join(sorted(active_items))}")
     else:
-        t1_codes = [c[1] for c in DEFAULT_TIER_TABLE["T1"]]
-        t2_codes = [c[1] for c in DEFAULT_TIER_TABLE["T2"]]
-        t3_codes = [c[1] for c in DEFAULT_TIER_TABLE["T3"]]
+        t1_items = [f"{c[1]} ({c[2]})" for c in DEFAULT_TIER_TABLE["T1"]]
+        t2_items = [f"{c[1]} ({c[2]})" for c in DEFAULT_TIER_TABLE["T2"]]
+        t3_items = [f"{c[1]} ({c[2]})" for c in DEFAULT_TIER_TABLE["T3"]]
         print(f"  * Mode                       : DEFAULT PRESET (T1: 50% | T2: 35% | T3: 15%)")
-        print(f"  * Default Tier 1 (50%)       : {', '.join(t1_codes)}")
-        print(f"  * Default Tier 2 (35%)       : {', '.join(t2_codes)}")
-        print(f"  * Default Tier 3 (15%)       : {', '.join(t3_codes)}")
+        print(f"  * Default Tier 1 (50%)       : {', '.join(t1_items)}")
+        print(f"  * Default Tier 2 (35%)       : {', '.join(t2_items)}")
+        print(f"  * Default Tier 3 (15%)       : {', '.join(t3_items)}")
         print(f"  * Manual Override Variable   : NONE (Supply COUNTRY or COUNTRIES to override)")
 
-    print("-" * 78)
-    print("  * Full Official Supported Standard Catalog (50 Locations):")
-    std_codes = sorted(list(OFFICIAL_STANDARD_SCRAPERAPI.keys()))
-    print(f"    {', '.join(std_codes)}")
-    print("=" * 78 + "\n")
+    print("-" * 80)
+    print("  * Full Official Standard Catalog (50 Locations with Full Names):")
+    std_catalog = [f"{c.upper()}={name}" for c, name in sorted(OFFICIAL_STANDARD_SCRAPERAPI.items())]
+    for i in range(0, len(std_catalog), 4):
+        print(f"    {', '.join(std_catalog[i:i+4])}")
+    print("=" * 80 + "\n")
 
 def pick_country():
     if not IS_CUSTOM_CONFIGURED:
         available_tiers = [t for t in ("T1", "T2", "T3") if FILTERED_TIERS[t]]
         if not available_tiers:
-            return "T2", "US", "us"
+            return "T2", "US", "us", "United States"
 
         roll = random.random()
         if roll < 0.50 and FILTERED_TIERS.get("T1"):
@@ -1061,7 +1068,7 @@ def execute_bot(bot_id: int, total_bots: int, target_url: str, slug: str, ltype:
     if not key_obj:
         return
 
-    tier_label, c_upper, c_code = pick_country()
+    tier_label, c_upper, c_code, c_name = pick_country()
     expected_credits = calculate_credits(BROWSER_RENDERING, RESIDENTIAL)
     truncated_target = truncate_url(target_url, head_len=18, tail_len=14)
 
@@ -1104,7 +1111,7 @@ def execute_bot(bot_id: int, total_bots: int, target_url: str, slug: str, ltype:
         with urllib.request.urlopen(req, timeout=65) as resp:
             actual_credits = resp.headers.get("sa-credit-cost", str(expected_credits))
             print(
-                f"[Bot-{bot_id}/{total_bots}] [{tier_label}-{c_upper}] [{selected_cat.upper()}:{os_label}] "
+                f"[Bot-{bot_id}/{total_bots}] [{tier_label}-{c_upper} ({c_name})] [{selected_cat.upper()}:{os_label}] "
                 f"[{ltype} {slug}] [Target: {truncated_target}] [Ref: {ref_display}] "
                 f"[Credits: ~{actual_credits} cost] [{key_obj.tag}] -> HTTP {resp.status} OK"
             )
@@ -1113,7 +1120,7 @@ def execute_bot(bot_id: int, total_bots: int, target_url: str, slug: str, ltype:
         raw_detail = e.read().decode("utf-8", errors="ignore")[:100].strip()
         # Protect keys from dying if ScraperAPI returns a plan/tier restriction HTTP 403
         if e.code == 403 and "premium tier" in raw_detail.lower():
-            print(f"[Bot-{bot_id}] [{key_obj.tag}] [Target: {truncated_target}] [PLAN LIMIT] {c_upper} requires Business Tier. Key kept active.")
+            print(f"[Bot-{bot_id}] [{key_obj.tag}] [Target: {truncated_target}] [PLAN LIMIT] {c_upper} ({c_name}) requires Business Tier. Key kept active.")
         elif e.code in (401, 403):
             reason_msg = f"HTTP {e.code} Credits Exhausted / Invalid Key ({raw_detail})"
             pool.mark_dead(key_obj, reason_msg)
@@ -1145,7 +1152,7 @@ def main():
         print("!" * 70 + "\n")
         sys.exit(1)
 
-    # Print Pinned Standard Geotargeting Diagnostic Banner
+    # Print Pinned Standard Geotargeting Diagnostic Banner with names and codes
     print_pinned_country_diagnostic()
 
     print(f"Total Active Keys       : {len(pool.active_keys)}")
