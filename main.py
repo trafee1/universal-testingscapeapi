@@ -61,7 +61,6 @@ def truncate_url(url: str, head_len: int = 18, tail_len: int = 14) -> str:
         return url
     return f"{url[:head_len]}...{url[-tail_len:]}"
 
-# Ratio: e.g. 80 means 80% native, 20% others
 def parse_native_ratio(var_name: str, default_pct: float = 80.0) -> float:
     raw = get_env(var_name)
     if not raw:
@@ -76,6 +75,85 @@ def parse_native_ratio(var_name: str, default_pct: float = 80.0) -> float:
         return min(1.0, max(0.0, val))
     except Exception:
         return default_pct / 100.0
+
+
+# =========================================================
+# OFFICIAL SCRAPERAPI GEOTARGETING MASTER DATABASE (240+ COUNTRIES)
+# =========================================================
+# Official Standard Datacenter & Residential Base Pool (50 Core Geotargets)
+SCRAPERAPI_STANDARD_GEOS = {
+    "us": "United States", "gb": "United Kingdom", "uk": "United Kingdom",
+    "ca": "Canada", "de": "Germany", "fr": "France", "es": "Spain",
+    "it": "Italy", "nl": "Netherlands", "pl": "Poland", "br": "Brazil",
+    "au": "Australia", "jp": "Japan", "in": "India", "mx": "Mexico",
+    "sg": "Singapore", "se": "Sweden", "tr": "Turkey", "vn": "Vietnam",
+    "id": "Indonesia", "kr": "South Korea", "cz": "Czech Republic",
+    "ro": "Romania", "ae": "United Arab Emirates", "th": "Thailand",
+    "ph": "Philippines", "sa": "Saudi Arabia", "hk": "Hong Kong",
+    "tw": "Taiwan", "za": "South Africa", "il": "Israel", "no": "Norway",
+    "dk": "Denmark", "fi": "Finland", "be": "Belgium", "ch": "Switzerland",
+    "at": "Austria", "ie": "Ireland", "nz": "New Zealand", "pt": "Portugal",
+    "gr": "Greece", "hu": "Hungary", "ar": "Argentina", "cl": "Chile",
+    "co": "Colombia", "my": "Malaysia", "ua": "Ukraine", "bg": "Bulgaria",
+    "hr": "Croatia", "sk": "Slovakia"
+}
+
+# Official Premium Extended Geotargets Pool (Requires Business tier or premium=true)
+SCRAPERAPI_PREMIUM_GEOS = {
+    "ad": "Andorra", "af": "Afghanistan", "ag": "Antigua and Barbuda", "ai": "Anguilla",
+    "al": "Albania", "am": "Armenia", "ao": "Angola", "aq": "Antarctica",
+    "as": "American Samoa", "aw": "Aruba", "ax": "Aland Islands", "az": "Azerbaijan",
+    "ba": "Bosnia and Herzegovina", "bb": "Barbados", "bd": "Bangladesh", "bf": "Burkina Faso",
+    "bh": "Bahrain", "bi": "Burundi", "bj": "Benin", "bl": "Saint Barthelemy",
+    "bm": "Bermuda", "bn": "Brunei", "bo": "Bolivia", "bq": "Bonaire",
+    "bs": "Bahamas", "bt": "Bhutan", "bv": "Bouvet Island", "bw": "Botswana",
+    "by": "Belarus", "bz": "Belize", "cc": "Cocos Islands", "cd": "DR Congo",
+    "cf": "Central African Republic", "cg": "Congo", "ci": "Ivory Coast", "ck": "Cook Islands",
+    "cm": "Cameroon", "cn": "China", "cr": "Costa Rica", "cu": "Cuba",
+    "cv": "Cape Verde", "cw": "Curacao", "cx": "Christmas Island", "cy": "Cyprus",
+    "dj": "Djibouti", "dm": "Dominica", "do": "Dominican Republic", "dz": "Algeria",
+    "ec": "Ecuador", "ee": "Estonia", "eg": "Egypt", "eh": "Western Sahara",
+    "er": "Eritrea", "et": "Ethiopia", "fj": "Fiji", "fk": "Falkland Islands",
+    "fm": "Micronesia", "fo": "Faroe Islands", "ga": "Gabon", "gd": "Grenada",
+    "ge": "Georgia", "gf": "French Guiana", "gg": "Guernsey", "gh": "Ghana",
+    "gi": "Gibraltar", "gl": "Greenland", "gm": "Gambia", "gn": "Guinea",
+    "gp": "Guadeloupe", "gq": "Equatorial Guinea", "gs": "South Georgia", "gt": "Guatemala",
+    "gu": "Guam", "gw": "Guinea-Bissau", "gy": "Guyana", "hm": "Heard Island",
+    "hn": "Honduras", "ht": "Haiti", "im": "Isle of Man", "io": "British Indian Ocean Territory",
+    "iq": "Iraq", "ir": "Iran", "is": "Iceland", "je": "Jersey",
+    "jm": "Jamaica", "jo": "Jordan", "ke": "Kenya", "kg": "Kyrgyzstan",
+    "kh": "Cambodia", "ki": "Kiribati", "km": "Comoros", "kn": "Saint Kitts and Nevis",
+    "kp": "North Korea", "kw": "Kuwait", "ky": "Cayman Islands", "kz": "Kazakhstan",
+    "la": "Laos", "lb": "Lebanon", "lc": "Saint Lucia", "li": "Liechtenstein",
+    "lk": "Sri Lanka", "lr": "Liberia", "ls": "Lesotho", "lt": "Lithuania",
+    "lu": "Luxembourg", "lv": "Latvia", "ly": "Libya", "ma": "Morocco",
+    "mc": "Monaco", "md": "Moldova", "me": "Montenegro", "mf": "Saint Martin",
+    "mg": "Madagascar", "mh": "Marshall Islands", "mk": "North Macedonia", "ml": "Mali",
+    "mm": "Myanmar", "mn": "Mongolia", "mo": "Macau", "mp": "Northern Mariana Islands",
+    "mq": "Martinique", "mr": "Mauritania", "ms": "Montserrat", "mt": "Malta",
+    "mu": "Mauritius", "mv": "Maldives", "mw": "Malawi", "mz": "Mozambique",
+    "na": "Namibia", "nc": "New Caledonia", "ne": "Niger", "nf": "Norfolk Island",
+    "ng": "Nigeria", "ni": "Nicaragua", "np": "Nepal", "nr": "Nauru",
+    "nu": "Niue", "om": "Oman", "pa": "Panama", "pe": "Peru",
+    "pf": "French Polynesia", "pg": "Papua New Guinea", "pk": "Pakistan", "pm": "Saint Pierre and Miquelon",
+    "pn": "Pitcairn", "pr": "Puerto Rico", "ps": "Palestine", "pw": "Palau",
+    "py": "Paraguay", "qa": "Qatar", "re": "Reunion", "rs": "Serbia",
+    "ru": "Russia", "rw": "Rwanda", "sb": "Solomon Islands", "sc": "Seychelles",
+    "sd": "Sudan", "sh": "Saint Helena", "si": "Slovenia", "sj": "Svalbard",
+    "sl": "Sierra Leone", "sm": "San Marino", "sn": "Senegal", "so": "Somalia",
+    "sr": "Suriname", "ss": "South Sudan", "st": "Sao Tome and Principe", "sv": "El Salvador",
+    "sx": "Sint Maarten", "sy": "Syria", "sz": "Eswatini", "tc": "Turks and Caicos",
+    "td": "Chad", "tf": "French Southern Territories", "tg": "Togo", "tj": "Tajikistan",
+    "tk": "Tokelau", "tl": "Timor-Leste", "tm": "Turkmenistan", "tn": "Tunisia",
+    "to": "Tonga", "tt": "Trinidad and Tobago", "tv": "Tuvalu", "tz": "Tanzania",
+    "ug": "Uganda", "um": "U.S. Outlying Islands", "uy": "Uruguay", "uz": "Uzbekistan",
+    "va": "Vatican City", "vc": "Saint Vincent and the Grenadines", "ve": "Venezuela", "vg": "British Virgin Islands",
+    "vi": "U.S. Virgin Islands", "vu": "Vanuatu", "wf": "Wallis and Futuna", "ws": "Samoa",
+    "ye": "Yemen", "yt": "Mayotte", "zm": "Zambia", "zw": "Zimbabwe"
+}
+
+# The complete consolidated ScraperAPI geotargeting master catalog
+ALL_OFFICIAL_SCRAPERAPI_COUNTRIES = {**SCRAPERAPI_STANDARD_GEOS, **SCRAPERAPI_PREMIUM_GEOS}
 
 
 # =========================================================
@@ -255,7 +333,7 @@ MAC_OPERA_ALL = [
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 OPR/98.0.0.0",
 ]
 
-# --- LINUX CHROME / FIREFOX ---
+# --- LINUX CHROME / FIREFOX / OPERA ---
 LINUX_CHROME_HIGH = [
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
@@ -399,7 +477,7 @@ ANDROID_SAMSUNG_LOW = [
     "Mozilla/5.0 (Linux; Android 10; SM-G960F) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/18.0 Chrome/99.0.0.0 Mobile Safari/537.36",
 ]
 
-# --- ANDROID FIREFOX (Strict Handheld Mobile Token) ---
+# --- ANDROID FIREFOX ---
 ANDROID_FF_ALL = [
     "Mozilla/5.0 (Android 15; Mobile; rv:152.0) Gecko/152.0 Firefox/152.0",
     "Mozilla/5.0 (Android 15; Mobile; rv:150.0) Gecko/150.0 Firefox/150.0",
@@ -415,7 +493,7 @@ ANDROID_FF_ALL = [
     "Mozilla/5.0 (Android 11; Mobile; rv:128.0) Gecko/128.0 Firefox/128.0",
 ]
 
-# --- ANDROID OPERA (Strict Handheld Mobile Token) ---
+# --- ANDROID OPERA ---
 ANDROID_OPERA_ALL = [
     "Mozilla/5.0 (Linux; Android 15; SM-S938B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36 OPR/88.0.0.0",
     "Mozilla/5.0 (Linux; Android 14; SM-S928B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Mobile Safari/537.36 OPR/86.0.0.0",
@@ -442,7 +520,7 @@ def sample_weighted_browser(high_list, mid_list, low_list):
 
 
 # ---------------------------------------------------------
-# Deterministic AST Parser for DEVICE_TYPE Hierarchy
+# AST Parser for DEVICE_TYPE Hierarchy
 # ---------------------------------------------------------
 def tokenize_balanced_blocks(s: str) -> list:
     tokens = []
@@ -565,7 +643,6 @@ def validate_ua_entries(uas: list, expected_scope: str):
                 print("#" * 70 + "\n")
                 sys.exit(1)
 
-
 CUSTOM_DESKTOP_UAS = parse_list("DESKTOP_USER_AGENTS", [])
 CUSTOM_MOBILE_UAS = parse_list("MOBILE_USER_AGENTS", [])
 
@@ -592,8 +669,6 @@ def pick_browser_for_os(os_name: str, allowed_browsers: list, native_pct: float)
         return allowed_browsers[0]
 
     native_name = NATIVE_BROWSER_MAP.get(os_name, "")
-    
-    # If the native browser is in the user's allowed list
     if native_name and native_name in allowed_browsers:
         other_browsers = [b for b in allowed_browsers if b != native_name]
         if other_browsers and random.random() < native_pct:
@@ -602,7 +677,6 @@ def pick_browser_for_os(os_name: str, allowed_browsers: list, native_pct: float)
             return random.choice(other_browsers)
         return native_name
 
-    # If native not allowed or not specified, choose uniformly from configured
     return random.choice(allowed_browsers)
 
 
@@ -676,7 +750,6 @@ def get_ua_for_selection(category: str, os_name: str, browser: str) -> tuple:
 
     return sample_weighted_browser(WIN_CHROME_HIGH, WIN_CHROME_MID, WIN_CHROME_LOW), "Win:Chrome"
 
-
 def resolve_cycle_ua(used_uas_in_cycle: set) -> tuple:
     cats = list(DEVICE_TREE.keys())
     cat = random.choice(cats) if cats else "mobile"
@@ -687,8 +760,6 @@ def resolve_cycle_ua(used_uas_in_cycle: set) -> tuple:
 
     chosen_os = random.choice(list(sub_os_dict.keys()))
     allowed_browsers = sub_os_dict.get(chosen_os, ["chrome"])
-    
-    # Select browser according to 80% native vs other rule
     chosen_browser = pick_browser_for_os(chosen_os, allowed_browsers, NATIVE_RATIO)
 
     ua, label = "", ""
@@ -701,86 +772,116 @@ def resolve_cycle_ua(used_uas_in_cycle: set) -> tuple:
     return cat, ua, label
 
 
-# ---------------------------------------------------------
-# Country Include/Exclude Parser
-# ---------------------------------------------------------
-TIER_TABLE = {
-    "T1": [
-        ("FR", "fr"), ("DE", "de"), ("NL", "nl"), ("ES", "es"),
-        ("IT", "it"), ("PL", "pl"), ("SE", "se"), ("BR", "br"),
-        ("KR", "kr"), ("TR", "tr"), ("VN", "vn"), ("ID", "id"),
-        ("CA", "ca"), ("JP", "jp"), ("SG", "sg")
-    ],
-    "T2": [
-        ("US", "us"), ("GB", "gb"), ("CZ", "cz"), ("RO", "ro"),
-        ("AE", "ae"), ("MX", "mx"), ("TH", "th"), ("PH", "ph")
-    ],
-    "T3": [
-        ("IN", "in"), ("SA", "sa"), ("HK", "hk"), ("TW", "tw")
-    ]
-}
+# =========================================================
+# DYNAMIC COUNTRY RESOLVER & PINNED LOG ENGINE
+# =========================================================
+def parse_and_validate_country_config(raw_cfg: str):
+    inc_raw = set()
+    exc_raw = set()
 
-def parse_country_config(raw_cfg: str):
-    inc = set()
-    exc = set()
-    if not raw_cfg.strip():
-        return inc, exc
-
-    tokens = [t.strip() for t in re.split(r",(?![^{]*\})", raw_cfg) if t.strip()]
-    for token in tokens:
-        match = re.match(r"^(include|exclude)\{([^\}]+)\}$", token, re.IGNORECASE)
-        if match:
-            mode = match.group(1).lower()
-            codes = [c.strip().lower() for c in match.group(2).split(",") if c.strip()]
-            if mode == "include":
-                inc.update(codes)
+    if raw_cfg.strip():
+        tokens = [t.strip() for t in re.split(r",(?![^{]*\})", raw_cfg) if t.strip()]
+        for token in tokens:
+            match = re.match(r"^(include|exclude)\{([^\}]+)\}$", token, re.IGNORECASE)
+            if match:
+                mode = match.group(1).lower()
+                codes = [c.strip().lower() for c in match.group(2).split(",") if c.strip()]
+                if mode == "include":
+                    inc_raw.update(codes)
+                else:
+                    exc_raw.update(codes)
             else:
-                exc.update(codes)
-        else:
-            codes = [c.strip().lower() for c in token.split(",") if c.strip()]
-            inc.update(codes)
+                codes = [c.strip().lower() for c in token.split(",") if c.strip()]
+                inc_raw.update(codes)
 
-    contradictions = inc.intersection(exc)
+    # Separate codes into:
+    # 1. Non-ISO garbage codes (trigger pinned red alert)
+    # 2. Known official ScraperAPI codes
+    # 3. Valid 2-letter ISO codes that still get forwarded directly to ScraperAPI
+    all_specified = inc_raw.union(exc_raw)
+    unsupported = set()
+    custom_pass_through = set()
+
+    for c in all_specified:
+        if not re.match(r"^[a-z]{2}$", c):
+            unsupported.add(c)
+        elif c not in ALL_OFFICIAL_SCRAPERAPI_COUNTRIES:
+            custom_pass_through.add(c)
+
+    # Prominent Red Alert output for invalid entries
+    if unsupported:
+        red_start = "\033[91m\033[1m"
+        red_end = "\033[0m"
+        print(f"\n{red_start}######################################################################{red_end}")
+        print(f"{red_start} [PINNED CRITICAL RED ALERT] INVALID NON-ISO COUNTRY CODE DETECTED!{red_end}")
+        print(f"{red_start}  The following entries are completely invalid/malformed: {sorted(list(unsupported))}{red_end}")
+        print(f"{red_start}  ScraperAPI strictly requires standard 2-letter ISO country codes.{red_end}")
+        print(f"{red_start}  Action: Stripped malformed codes so they do not cause routing bugs.{red_end}")
+        print(f"{red_start}######################################################################{red_end}\n")
+        inc_raw.difference_update(unsupported)
+        exc_raw.difference_update(unsupported)
+
+    # Contradiction resolution
+    contradictions = inc_raw.intersection(exc_raw)
     if contradictions:
         print("\n" + "=" * 70)
         print(" [PINNED AUDIT ALERT] COUNTRY CONTRADICTION DETECTED!")
-        print(f" Overlapping countries present in both include and exclude: {sorted(list(contradictions))}")
-        print(" Default Rule: Explicitly included countries take precedence.")
+        print(f" Overlapping countries in both include and exclude: {sorted(list(contradictions))}")
+        print(" Rule: Explicit inclusion overrides exclusion.")
         print("=" * 70 + "\n")
-        exc.difference_update(contradictions)
+        exc_raw.difference_update(contradictions)
 
-    return inc, exc
+    # Build active candidate pool
+    final_pool = {}
+    if inc_raw:
+        for code in inc_raw:
+            final_pool[code] = ALL_OFFICIAL_SCRAPERAPI_COUNTRIES.get(code, f"Custom ({code.upper()})")
+    else:
+        for code, name in ALL_OFFICIAL_SCRAPERAPI_COUNTRIES.items():
+            if exc_raw and code in exc_raw:
+                continue
+            final_pool[code] = name
+
+    # Fallback guard
+    if not final_pool:
+        print("\n" + "!" * 70)
+        print(" [WARN] No active countries remaining. Defaulting rotation pool to US (us).")
+        print("!" * 70 + "\n")
+        final_pool["us"] = "United States"
+
+    return inc_raw, exc_raw, unsupported, custom_pass_through, final_pool
 
 RAW_COUNTRY_CONF = get_env("COUNTRY", get_env("COUNTRIES", ""))
-INC_COUNTRIES, EXC_COUNTRIES = parse_country_config(RAW_COUNTRY_CONF)
+INC_COUNTRIES, EXC_COUNTRIES, INVALID_INPUT_COUNTRIES, CUSTOM_PASSED_COUNTRIES, ACTIVE_COUNTRY_POOL = parse_and_validate_country_config(RAW_COUNTRY_CONF)
 
-def build_filtered_country_pools():
-    filtered = {"T1": [], "T2": [], "T3": []}
-    for tier, pairs in TIER_TABLE.items():
-        for code_upper, code_lower in pairs:
-            if EXC_COUNTRIES and (code_lower in EXC_COUNTRIES or code_upper.lower() in EXC_COUNTRIES):
-                continue
-            if INC_COUNTRIES and (code_lower not in INC_COUNTRIES and code_upper.lower() not in INC_COUNTRIES):
-                continue
-            filtered[tier].append((code_upper, code_lower))
-    return filtered
+def print_pinned_country_diagnostic():
+    print("=" * 78)
+    print("             PINNED OFFICIAL SCRAPERAPI GEOTARGETING AUDIT")
+    print("=" * 78)
+    inc_display = ", ".join(sorted(list(INC_COUNTRIES))) if INC_COUNTRIES else "ALL SUPPORTED (Default)"
+    exc_display = ", ".join(sorted(list(EXC_COUNTRIES))) if EXC_COUNTRIES else "NONE"
+    invalid_display = ", ".join(sorted(list(INVALID_INPUT_COUNTRIES))) if INVALID_INPUT_COUNTRIES else "NONE"
+    custom_display = ", ".join(sorted(list(CUSTOM_PASSED_COUNTRIES))) if CUSTOM_PASSED_COUNTRIES else "NONE"
 
-FILTERED_COUNTRIES = build_filtered_country_pools()
+    print(f"  * Configured Included Filter : {inc_display}")
+    print(f"  * Configured Excluded Filter : {exc_display}")
+    print(f"  * Rejected/Malformed Inputs  : {invalid_display}")
+    print(f"  * Custom Direct-Pass Codes   : {custom_display}")
+    print(f"  * Total Active Pool Size     : {len(ACTIVE_COUNTRY_POOL)} countries available")
+    print(f"  * Active Rotation Codes      : {', '.join(sorted(list(ACTIVE_COUNTRY_POOL.keys())))}")
+    print("-" * 78)
+    print("  * Official ScraperAPI Standard Catalog (50 Locations):")
+    std_codes = sorted(list(SCRAPERAPI_STANDARD_GEOS.keys()))
+    print(f"    {', '.join(std_codes)}")
+    print("  * Official ScraperAPI Premium Extended Catalog (190+ Locations):")
+    prem_codes = sorted(list(SCRAPERAPI_PREMIUM_GEOS.keys()))
+    print(f"    {', '.join(prem_codes)}")
+    print("=" * 78 + "\n")
 
 def pick_country():
-    available_tiers = [t for t in ("T1", "T2", "T3") if FILTERED_COUNTRIES[t]]
-    if not available_tiers:
-        return "T2", "US", "us"
-
-    roll = random.random()
-    if roll < 0.50 and FILTERED_COUNTRIES.get("T1"):
-        return "T1", *random.choice(FILTERED_COUNTRIES["T1"])
-    elif roll < 0.85 and FILTERED_COUNTRIES.get("T2"):
-        return "T2", *random.choice(FILTERED_COUNTRIES["T2"])
-    elif FILTERED_COUNTRIES.get("T3"):
-        return "T3", *random.choice(FILTERED_COUNTRIES["T3"])
-    t = random.choice(available_tiers)
-    return t, *random.choice(FILTERED_COUNTRIES[t])
+    code = random.choice(list(ACTIVE_COUNTRY_POOL.keys()))
+    name = ACTIVE_COUNTRY_POOL[code]
+    return name, code.upper(), code
 
 
 # ---------------------------------------------------------
@@ -919,7 +1020,7 @@ class KeyPoolManager:
             self.dead_keys.append((key_obj, reason, ts))
 
             print("\n" + "#" * 70)
-            print(f" [PINNED ALERT] API KEY DIED / EXHAUSTED CREDITS")
+            print(" [PINNED ALERT] API KEY DIED / EXHAUSTED CREDITS")
             print(f"  Key Identifier : {key_obj.tag}")
             print(f"  Death Time     : {ts}")
             print(f"  Confirmed Cause: {reason}")
@@ -982,27 +1083,30 @@ def execute_bot(bot_id: int, total_bots: int, target_url: str, slug: str, ltype:
     if not key_obj:
         return
 
-    tier, label, code = pick_country()
+    c_name, c_upper, c_code = pick_country()
     expected_credits = calculate_credits(BROWSER_RENDERING, RESIDENTIAL)
     truncated_target = truncate_url(target_url, head_len=18, tail_len=14)
 
     # ScraperAPI unique rotation seed to prevent IP reuse
     rotation_seed = random.randint(1000000, 9999999)
 
+    # ScraperAPI requires premium=true for Premium Geo locations or when RESIDENTIAL is set
+    needs_premium = RESIDENTIAL or (c_code in SCRAPERAPI_PREMIUM_GEOS)
+
     params = {
         "api_key": key_obj.token,
         "device_type": selected_cat,
-        "country_code": code,
+        "country_code": c_code,
         "render": BROWSER_RENDERING,
         "keep_headers": "true",
         "session_number": str(rotation_seed),
         "url": target_url
     }
-    if RESIDENTIAL:
+    if needs_premium:
         params["premium"] = "true"
 
     url = f"http://api.scraperapi.com?{urllib.parse.urlencode(params)}"
-    
+
     # Accurate browser client hints to prevent platforms flagging desktop
     headers = {
         "User-Agent": selected_ua,
@@ -1027,7 +1131,7 @@ def execute_bot(bot_id: int, total_bots: int, target_url: str, slug: str, ltype:
         with urllib.request.urlopen(req, timeout=65) as resp:
             actual_credits = resp.headers.get("sa-credit-cost", str(expected_credits))
             print(
-                f"[Bot-{bot_id}/{total_bots}] [{tier}-{label}] [{selected_cat.upper()}:{os_label}] "
+                f"[Bot-{bot_id}/{total_bots}] [{c_upper} - {c_name[:12]}] [{selected_cat.upper()}:{os_label}] "
                 f"[{ltype} {slug}] [Target: {truncated_target}] [Ref: {ref_display}] "
                 f"[Credits: ~{actual_credits} cost] [{key_obj.tag}] -> HTTP {resp.status} OK"
             )
@@ -1065,9 +1169,12 @@ def main():
         print("!" * 70 + "\n")
         sys.exit(1)
 
+    # Print Pinned Diagnostics Banner at the very start
+    print_pinned_country_diagnostic()
+
     print(f"Total Active Keys       : {len(pool.active_keys)}")
     print(f"Browser Rendering       : {BROWSER_RENDERING}")
-    print(f"Residential Proxies     : {'ENABLED (premium=true)' if RESIDENTIAL else 'DISABLED (Standard DataCenter)'}")
+    print(f"Residential Proxies     : {'ENABLED (premium=true)' if RESIDENTIAL else 'DISABLED (Auto-switches on Premium Geo)'}")
     print(f"Est. Credits Per Hit    : ~{calculate_credits(BROWSER_RENDERING, RESIDENTIAL)} credits")
     print(f"Active Device Hierarchy : {DEVICE_TREE}")
     print(f"Native Browser Weight   : {int(NATIVE_RATIO * 100)}% Native / {int((1.0 - NATIVE_RATIO) * 100)}% Others")
