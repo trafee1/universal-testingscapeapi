@@ -63,10 +63,10 @@ def truncate_url(url: str, head_len: int = 18, tail_len: int = 14) -> str:
 
 
 # =========================================================
-# MANUAL USER AGENT POOLS (LINE BY LINE, STANDARD FROZEN)
+# MANUAL USER AGENT POOLS (STRICT OS & BROWSER MATCHING)
 # =========================================================
 
-# --- WINDOWS CHROME ---
+# --- WINDOWS CHROME (65% High, 25% Mid, 10% Low) ---
 WIN_CHROME_HIGH = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
@@ -287,7 +287,7 @@ LINUX_OPERA_ALL = [
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 OPR/96.0.0.0",
 ]
 
-# --- IOS SAFARI ---
+# --- IOS SAFARI (Strict iOS Handheld) ---
 IOS_SAFARI_HIGH = [
     "Mozilla/5.0 (iPhone; CPU iPhone OS 18_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3 Mobile/15E148 Safari/604.1",
     "Mozilla/5.0 (iPhone; CPU iPhone OS 18_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Mobile/15E148 Safari/604.1",
@@ -344,7 +344,7 @@ IOS_OPERA_ALL = [
     "Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) OPT/4.0.0 Mobile/15E148 Safari/604.1",
 ]
 
-# --- ANDROID CHROME ---
+# --- ANDROID CHROME (Strict Mobile Safari Formats) ---
 ANDROID_CHROME_HIGH = [
     "Mozilla/5.0 (Linux; Android 15; Pixel 9 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Mobile Safari/537.36",
     "Mozilla/5.0 (Linux; Android 15; SM-S938B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Mobile Safari/537.36",
@@ -395,20 +395,27 @@ ANDROID_SAMSUNG_LOW = [
     "Mozilla/5.0 (Linux; Android 10; SM-G960F) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/18.0 Chrome/99.0.0.0 Mobile Safari/537.36",
 ]
 
-# --- ANDROID FIREFOX ---
+# --- ANDROID FIREFOX (Strict Handheld Mobile Token) ---
 ANDROID_FF_ALL = [
-    "Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro; rv:150.0) Gecko/150.0 Firefox/150.0",
-    "Mozilla/5.0 (Linux; Android 14; Pixel 8; rv:146.0) Gecko/146.0 Firefox/146.0",
-    "Mozilla/5.0 (Linux; Android 13; SM-S911B; rv:142.0) Gecko/142.0 Firefox/142.0",
-    "Mozilla/5.0 (Linux; Android 13; Pixel 7; rv:138.0) Gecko/138.0 Firefox/138.0",
-    "Mozilla/5.0 (Linux; Android 12; SM-G998B; rv:134.0) Gecko/134.0 Firefox/134.0",
-    "Mozilla/5.0 (Linux; Android 11; Pixel 5; rv:128.0) Gecko/128.0 Firefox/128.0",
+    "Mozilla/5.0 (Android 15; Mobile; rv:152.0) Gecko/152.0 Firefox/152.0",
+    "Mozilla/5.0 (Android 15; Mobile; rv:150.0) Gecko/150.0 Firefox/150.0",
+    "Mozilla/5.0 (Android 14; Mobile; rv:148.0) Gecko/148.0 Firefox/148.0",
+    "Mozilla/5.0 (Android 14; Mobile; rv:146.0) Gecko/146.0 Firefox/146.0",
+    "Mozilla/5.0 (Android 14; Mobile; rv:144.0) Gecko/144.0 Firefox/144.0",
+    "Mozilla/5.0 (Android 14; Mobile; rv:142.0) Gecko/142.0 Firefox/142.0",
+    "Mozilla/5.0 (Android 13; Mobile; rv:140.0) Gecko/140.0 Firefox/140.0",
+    "Mozilla/5.0 (Android 13; Mobile; rv:138.0) Gecko/138.0 Firefox/138.0",
+    "Mozilla/5.0 (Android 13; Mobile; rv:136.0) Gecko/136.0 Firefox/136.0",
+    "Mozilla/5.0 (Android 12; Mobile; rv:134.0) Gecko/134.0 Firefox/134.0",
+    "Mozilla/5.0 (Android 12; Mobile; rv:130.0) Gecko/130.0 Firefox/130.0",
+    "Mozilla/5.0 (Android 11; Mobile; rv:128.0) Gecko/128.0 Firefox/128.0",
 ]
 
-# --- ANDROID OPERA ---
+# --- ANDROID OPERA (Strict Handheld Opera Mobile Token) ---
 ANDROID_OPERA_ALL = [
-    "Mozilla/5.0 (Linux; Android 14; SM-S928B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Mobile Safari/537.36 OPR/88.0.0.0",
-    "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Mobile Safari/537.36 OPR/85.0.0.0",
+    "Mozilla/5.0 (Linux; Android 15; SM-S938B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36 OPR/88.0.0.0",
+    "Mozilla/5.0 (Linux; Android 14; SM-S928B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Mobile Safari/537.36 OPR/86.0.0.0",
+    "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Mobile Safari/537.36 OPR/84.0.0.0",
     "Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36 OPR/82.0.0.0",
     "Mozilla/5.0 (Linux; Android 13; SM-A546B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Mobile Safari/537.36 OPR/79.0.0.0",
     "Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36 OPR/75.0.0.0",
@@ -431,9 +438,9 @@ def sample_weighted_browser(high_list, mid_list, low_list):
 
 
 # ---------------------------------------------------------
-# AST-Style Robust Nested Parser for DEVICE_TYPE
+# Deterministic AST Parser for DEVICE_TYPE Hierarchy
 # ---------------------------------------------------------
-def split_balanced_commas(s: str) -> list:
+def tokenize_balanced_blocks(s: str) -> list:
     tokens = []
     depth = 0
     buf = []
@@ -465,39 +472,38 @@ def parse_nested_device_spec(spec_str: str) -> dict:
         }
 
     tree = {}
-    top_entries = split_balanced_commas(spec_str)
+    cat_blocks = tokenize_balanced_blocks(spec_str)
 
-    for entry in top_entries:
-        if "{" in entry and entry.endswith("}"):
-            cat = entry[:entry.index("{")].strip().lower()
-            cat_body = entry[entry.index("{") + 1:-1].strip()
-        else:
-            cat = entry.strip().lower()
-            cat_body = ""
+    for block in cat_blocks:
+        match = re.match(r"^([a-zA-Z]+)(?:\{(.*)\})?$", block, re.DOTALL)
+        if not match:
+            continue
+        cat = match.group(1).lower().strip()
+        body = match.group(2)
 
         if cat not in ("mobile", "desktop"):
             continue
 
         tree[cat] = {}
 
-        if not cat_body:
+        if not body:
             if cat == "mobile":
                 tree[cat] = {"android": ["chrome", "samsung", "firefox", "opera"], "ios": ["safari", "chrome", "firefox", "opera"]}
             else:
                 tree[cat] = {"windows": ["chrome", "edge", "firefox", "opera"], "mac": ["safari", "chrome", "firefox", "opera"], "linux": ["chrome", "firefox", "opera"]}
             continue
 
-        os_entries = split_balanced_commas(cat_body)
-        for os_entry in os_entries:
-            if "{" in os_entry and os_entry.endswith("}"):
-                os_name = os_entry[:os_entry.index("{")].strip().lower()
-                browser_body = os_entry[os_entry.index("{") + 1:-1].strip()
-                browsers = [b.strip().lower() for b in split_balanced_commas(browser_body) if b.strip()]
-            else:
-                os_name = os_entry.strip().lower()
-                browsers = []
+        os_blocks = tokenize_balanced_blocks(body)
+        for os_blk in os_blocks:
+            os_match = re.match(r"^([a-zA-Z]+)(?:\{(.*)\})?$", os_blk, re.DOTALL)
+            if not os_match:
+                continue
+            os_name = os_match.group(1).lower().strip()
+            b_body = os_match.group(2)
 
-            if not browsers:
+            if b_body:
+                browsers = [b.strip().lower() for b in tokenize_balanced_blocks(b_body) if b.strip()]
+            else:
                 if os_name == "windows":
                     browsers = ["chrome", "edge", "firefox", "opera"]
                 elif os_name in ("mac", "macos"):
@@ -573,7 +579,7 @@ def get_ua_for_selection(category: str, os_name: str, browser: str) -> tuple:
     if category == "desktop" and CUSTOM_DESKTOP_UAS:
         return random.choice(CUSTOM_DESKTOP_UAS), "Custom:Desktop"
 
-    # Strict Mobile Branch
+    # Strict Mobile Routing
     if category == "mobile":
         if os_name == "android":
             if browser == "firefox":
@@ -599,7 +605,7 @@ def get_ua_for_selection(category: str, os_name: str, browser: str) -> tuple:
 
         return random.choice(ANDROID_FF_ALL), "Android:Firefox"
 
-    # Strict Desktop Branch
+    # Strict Desktop Routing
     if category == "desktop":
         if os_name == "windows":
             if browser == "firefox":
@@ -942,7 +948,7 @@ def execute_bot(bot_id: int, total_bots: int, target_url: str, slug: str, ltype:
     expected_credits = calculate_credits(BROWSER_RENDERING, RESIDENTIAL)
     truncated_target = truncate_url(target_url, head_len=18, tail_len=14)
 
-    # ScraperAPI unique rotation seed to prevent IP sticking
+    # ScraperAPI unique rotation seed to prevent IP reuse
     rotation_seed = random.randint(1000000, 9999999)
 
     params = {
