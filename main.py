@@ -699,22 +699,58 @@ def resolve_cycle_ua(used_uas_in_cycle: set) -> tuple:
 # =========================================================
 # OFFICIAL SCRAPERAPI STANDARD MASTER GEOS & TIER DEFAULTS
 # =========================================================
-# Official 50 Standard Geotargeting countries supported on all basic/standard keys
+# The official standard geotargeting countries supported on all basic/standard keys
 OFFICIAL_STANDARD_SCRAPERAPI = {
-    "us": "United States", "gb": "United Kingdom", "uk": "United Kingdom",
-    "ca": "Canada", "de": "Germany", "fr": "France", "es": "Spain",
-    "it": "Italy", "nl": "Netherlands", "pl": "Poland", "br": "Brazil",
-    "au": "Australia", "jp": "Japan", "in": "India", "mx": "Mexico",
-    "sg": "Singapore", "se": "Sweden", "tr": "Turkey", "vn": "Vietnam",
-    "id": "Indonesia", "kr": "South Korea", "cz": "Czech Republic",
-    "ro": "Romania", "ae": "United Arab Emirates", "th": "Thailand",
-    "ph": "Philippines", "sa": "Saudi Arabia", "hk": "Hong Kong",
-    "tw": "Taiwan", "za": "South Africa", "il": "Israel", "no": "Norway",
-    "dk": "Denmark", "fi": "Finland", "be": "Belgium", "ch": "Switzerland",
-    "at": "Austria", "ie": "Ireland", "nz": "New Zealand", "pt": "Portugal",
-    "gr": "Greece", "hu": "Hungary", "ar": "Argentina", "cl": "Chile",
-    "co": "Colombia", "my": "Malaysia", "ua": "Ukraine", "bg": "Bulgaria",
-    "hr": "Croatia", "sk": "Slovakia"
+    "ar": "Argentina",
+    "au": "Australia",
+    "at": "Austria",
+    "be": "Belgium",
+    "br": "Brazil",
+    "bg": "Bulgaria",
+    "ca": "Canada",
+    "cl": "Chile",
+    "co": "Colombia",
+    "hr": "Croatia",
+    "cz": "Czech Republic",
+    "dk": "Denmark",
+    "fi": "Finland",
+    "fr": "France",
+    "de": "Germany",
+    "gr": "Greece",
+    "hk": "Hong Kong",
+    "hu": "Hungary",
+    "in": "India",
+    "id": "Indonesia",
+    "ie": "Ireland",
+    "il": "Israel",
+    "it": "Italy",
+    "jp": "Japan",
+    "my": "Malaysia",
+    "mx": "Mexico",
+    "nl": "Netherlands",
+    "nz": "New Zealand",
+    "no": "Norway",
+    "ph": "Philippines",
+    "pl": "Poland",
+    "pt": "Portugal",
+    "ro": "Romania",
+    "sa": "Saudi Arabia",
+    "sg": "Singapore",
+    "sk": "Slovakia",
+    "za": "South Africa",
+    "kr": "South Korea",
+    "es": "Spain",
+    "se": "Sweden",
+    "ch": "Switzerland",
+    "tw": "Taiwan",
+    "th": "Thailand",
+    "tr": "Turkey",
+    "ua": "Ukraine",
+    "ae": "United Arab Emirates",
+    "gb": "United Kingdom",
+    "uk": "United Kingdom",
+    "us": "United States",
+    "vn": "Vietnam"
 }
 
 # Default T1 / T2 / T3 structure preserved when no manual COUNTRY variable is set
@@ -799,7 +835,7 @@ def parse_and_validate_country_config(raw_cfg: str):
             for code_upper, code_lower, c_name in pairs:
                 filtered_tiers[tier].append((tier, code_upper, code_lower, c_name))
     else:
-        # Manual variable configuration: Allow all 50 official Standard ScraperAPI locations
+        # Manual variable configuration: Allow all official Standard ScraperAPI locations
         for code, name in OFFICIAL_STANDARD_SCRAPERAPI.items():
             if exc_raw and code in exc_raw:
                 continue
@@ -819,36 +855,75 @@ RAW_COUNTRY_CONF = get_env("COUNTRY", get_env("COUNTRIES", ""))
 INC_COUNTRIES, EXC_COUNTRIES, INVALID_INPUT_COUNTRIES, IS_CUSTOM_CONFIGURED, FILTERED_TIERS, CUSTOM_FLAT_POOL = parse_and_validate_country_config(RAW_COUNTRY_CONF)
 
 def print_pinned_country_diagnostic():
-    print("=" * 80)
+    print("=" * 85)
     print("           PINNED SCRAPERAPI STANDARD GEOTARGETING AUDIT")
-    print("=" * 80)
+    print("=" * 85)
+    
+    # Sort helper to sort tuples by full country name alphabetically
+    def sort_by_name(items):
+        return sorted(items, key=lambda x: x[1].lower())
+
     if IS_CUSTOM_CONFIGURED:
-        inc_disp = ", ".join([f"{c.upper()} ({OFFICIAL_STANDARD_SCRAPERAPI.get(c, 'Custom')})" for c in sorted(list(INC_COUNTRIES))]) if INC_COUNTRIES else "ALL STANDARD"
-        exc_disp = ", ".join([f"{c.upper()} ({OFFICIAL_STANDARD_SCRAPERAPI.get(c, 'Custom')})" for c in sorted(list(EXC_COUNTRIES))]) if EXC_COUNTRIES else "NONE"
+        # Get sorted list by country full name
+        inc_sorted = sorted([c for c in INC_COUNTRIES if c in OFFICIAL_STANDARD_SCRAPERAPI], 
+                            key=lambda c: OFFICIAL_STANDARD_SCRAPERAPI[c].lower())
+        exc_sorted = sorted([c for c in EXC_COUNTRIES if c in OFFICIAL_STANDARD_SCRAPERAPI], 
+                            key=lambda c: OFFICIAL_STANDARD_SCRAPERAPI[c].lower())
+        
+        inc_disp = ", ".join([f"{c} ({OFFICIAL_STANDARD_SCRAPERAPI[c]})" for c in inc_sorted]) if inc_sorted else "ALL STANDARD"
+        exc_disp = ", ".join([f"{c} ({OFFICIAL_STANDARD_SCRAPERAPI[c]})" for c in exc_sorted]) if exc_sorted else "NONE"
         inv_disp = ", ".join(sorted(list(INVALID_INPUT_COUNTRIES))) if INVALID_INPUT_COUNTRIES else "NONE"
-        active_items = [f"{c[1]} ({c[3]})" for c in CUSTOM_FLAT_POOL]
+        
         print(f"  * Mode                       : CUSTOM OVERRIDE (COUNTRY variable active)")
         print(f"  * Configured Included Filter : {inc_disp}")
         print(f"  * Configured Excluded Filter : {exc_disp}")
         print(f"  * Rejected / Non-Standard    : {inv_disp}")
         print(f"  * Total Active Rotation Pool : {len(CUSTOM_FLAT_POOL)} locations")
-        print(f"  * Active Rotation Pool       : {', '.join(sorted(active_items))}")
+        
+        # Display active flat pool line by line left to right, sorted by full country name
+        active_sorted = sorted(CUSTOM_FLAT_POOL, key=lambda x: x[3].lower())
+        active_formatted = [f"{c[2]} {c[3]}" for c in active_sorted]
+        print(f"  * Active Rotation Pool       :")
+        for i in range(0, len(active_formatted), 2):
+            col1 = active_formatted[i]
+            col2 = active_formatted[i+1] if i+1 < len(active_formatted) else ""
+            if col2:
+                print(f"    {col1:<38} |  {col2}")
+            else:
+                print(f"    {col1}")
     else:
-        t1_items = [f"{c[1]} ({c[2]})" for c in DEFAULT_TIER_TABLE["T1"]]
-        t2_items = [f"{c[1]} ({c[2]})" for c in DEFAULT_TIER_TABLE["T2"]]
-        t3_items = [f"{c[1]} ({c[2]})" for c in DEFAULT_TIER_TABLE["T3"]]
+        # Default Presets sorted alphabetically by full country name
+        t1_sorted = sorted(DEFAULT_TIER_TABLE["T1"], key=lambda x: x[2].lower())
+        t2_sorted = sorted(DEFAULT_TIER_TABLE["T2"], key=lambda x: x[2].lower())
+        t3_sorted = sorted(DEFAULT_TIER_TABLE["T3"], key=lambda x: x[2].lower())
+
+        t1_items = [f"{c[1]} {c[2]}" for c in t1_sorted]
+        t2_items = [f"{c[1]} {c[2]}" for c in t2_sorted]
+        t3_items = [f"{c[1]} {c[2]}" for c in t3_sorted]
+
         print(f"  * Mode                       : DEFAULT PRESET (T1: 50% | T2: 35% | T3: 15%)")
         print(f"  * Default Tier 1 (50%)       : {', '.join(t1_items)}")
         print(f"  * Default Tier 2 (35%)       : {', '.join(t2_items)}")
         print(f"  * Default Tier 3 (15%)       : {', '.join(t3_items)}")
         print(f"  * Manual Override Variable   : NONE (Supply COUNTRY or COUNTRIES to override)")
 
-    print("-" * 80)
-    print("  * Full Official Standard Catalog (50 Locations with Full Names):")
-    std_catalog = [f"{c.upper()}={name}" for c, name in sorted(OFFICIAL_STANDARD_SCRAPERAPI.items())]
-    for i in range(0, len(std_catalog), 4):
-        print(f"    {', '.join(std_catalog[i:i+4])}")
-    print("=" * 80 + "\n")
+    print("-" * 85)
+    print("  * Official Standard Supported Catalog (Sorted by Full Country Name):")
+    
+    # Sort complete standard catalog by country full name
+    sorted_catalog = sorted(OFFICIAL_STANDARD_SCRAPERAPI.items(), key=lambda item: item[1].lower())
+    formatted_catalog = [f"{code} {name}" for code, name in sorted_catalog]
+
+    # Two columns formatted line-by-line: Column 1 | Column 2 with fixed spacing
+    for i in range(0, len(formatted_catalog), 2):
+        col1 = formatted_catalog[i]
+        col2 = formatted_catalog[i+1] if i+1 < len(formatted_catalog) else ""
+        if col2:
+            print(f"    {col1:<38} |  {col2}")
+        else:
+            print(f"    {col1}")
+
+    print("=" * 85 + "\n")
 
 def pick_country():
     if not IS_CUSTOM_CONFIGURED:
