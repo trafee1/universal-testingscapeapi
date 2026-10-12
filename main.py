@@ -760,7 +760,7 @@ DEFAULT_TIER_TABLE = {
         ("ES", "es", "Spain"), ("IT", "it", "Italy"), ("PL", "pl", "Poland"),
         ("SE", "se", "Sweden"), ("BR", "br", "Brazil"), ("KR", "kr", "South Korea"),
         ("TR", "tr", "Turkey"), ("VN", "vn", "Vietnam"), ("ID", "id", "Indonesia"),
-        ("CA", "ca", "Canada"), ("JP", "jp", "Japan"), ("SG", "sg", "Singapore")
+        ("CA", "ca", "Canada"), ("JP", "jp", "Japan"), ("CH", "ch", "Switzerland")
     ],
     "T2": [
         ("US", "us", "United States"), ("GB", "gb", "United Kingdom"),
