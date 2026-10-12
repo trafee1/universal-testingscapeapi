@@ -431,7 +431,104 @@ def sample_weighted_browser(high_list, mid_list, low_list):
 
 
 # ---------------------------------------------------------
-# Strict UA Syntax & Cross-Platform Validator
+# Robust Nested DEVICE_TYPE Parser (Handles spaces & braces)
+# ---------------------------------------------------------
+def parse_top_level_blocks(text: str) -> list:
+    """Splits string by comma, but ignores commas inside curly braces."""
+    blocks = []
+    current = []
+    brace_depth = 0
+    for char in text:
+        if char == '{':
+            brace_depth += 1
+            current.append(char)
+        elif char == '}':
+            brace_depth = max(0, brace_depth - 1)
+            current.append(char)
+        elif char == ',' and brace_depth == 0:
+            token = "".join(current).strip()
+            if token:
+                blocks.append(token)
+            current = []
+        else:
+            current.append(char)
+    last_tok = "".join(current).strip()
+    if last_tok:
+        blocks.append(last_tok)
+    return blocks
+
+def parse_nested_device_spec(spec_str: str) -> dict:
+    spec_str = spec_str.strip()
+    if not spec_str:
+        return {
+            "mobile": {"android": ["chrome", "samsung", "firefox", "opera"], "ios": ["safari", "chrome", "firefox", "opera"]},
+            "desktop": {"windows": ["chrome", "edge", "firefox", "opera"], "mac": ["safari", "chrome", "firefox", "opera"], "linux": ["chrome", "firefox", "opera"]}
+        }
+
+    tree = {}
+    top_blocks = parse_top_level_blocks(spec_str)
+
+    for block in top_blocks:
+        match = re.match(r"^([a-zA-Z]+)(?:\s*\{\s*(.*)\s*\})?$", block, re.DOTALL)
+        if not match:
+            continue
+        category = match.group(1).lower()
+        sub_body = match.group(2)
+
+        if category not in ("mobile", "desktop"):
+            print(f"[WARN] Unknown category '{category}' in DEVICE_TYPE. Ignored.")
+            continue
+
+        tree[category] = {}
+
+        if not sub_body:
+            # Default full selection for that specific device category
+            if category == "mobile":
+                tree[category] = {"android": ["chrome", "samsung", "firefox", "opera"], "ios": ["safari", "chrome", "firefox", "opera"]}
+            else:
+                tree[category] = {"windows": ["chrome", "edge", "firefox", "opera"], "mac": ["safari", "chrome", "firefox", "opera"], "linux": ["chrome", "firefox", "opera"]}
+            continue
+
+        # Parse OS-level blocks
+        os_blocks = parse_top_level_blocks(sub_body)
+        for os_block in os_blocks:
+            os_match = re.match(r"^([a-zA-Z]+)(?:\s*\{\s*(.*)\s*\})?$", os_block, re.DOTALL)
+            if not os_match:
+                continue
+            os_name = os_match.group(1).lower()
+            browsers_raw = os_match.group(2)
+
+            if browsers_raw:
+                # Comma separated browsers, strip extra spaces
+                browsers = [b.strip().lower() for b in browsers_raw.split(",") if b.strip()]
+            else:
+                if os_name == "windows":
+                    browsers = ["chrome", "edge", "firefox", "opera"]
+                elif os_name in ("mac", "macos"):
+                    browsers = ["safari", "chrome", "firefox", "opera"]
+                elif os_name == "linux":
+                    browsers = ["chrome", "firefox", "opera"]
+                elif os_name == "ios":
+                    browsers = ["safari", "chrome", "firefox", "opera"]
+                elif os_name == "android":
+                    browsers = ["chrome", "samsung", "firefox", "opera"]
+                else:
+                    browsers = ["chrome"]
+
+            tree[category][os_name] = browsers
+
+    if not tree:
+        print("[CRITICAL] Could not parse DEVICE_TYPE correctly. Falling back to safe mobile default.")
+        tree = {"mobile": {"android": ["chrome"]}}
+
+    return tree
+
+RAW_DEVICE_SPEC = get_env("DEVICE_TYPE", "desktop,mobile")
+DEVICE_TREE = parse_nested_device_spec(RAW_DEVICE_SPEC)
+
+
+# ---------------------------------------------------------
+# Custom User-Agent Validator
 # ---------------------------------------------------------
 def validate_ua_entries(uas: list, expected_scope: str):
     desktop_signatures = ["windows nt", "macintosh", "x11; linux x86_64", "fedora", "ubuntu"]
@@ -473,137 +570,80 @@ if CUSTOM_MOBILE_UAS:
 
 
 # ---------------------------------------------------------
-# Nested DEVICE_TYPE Grammar Parser
-# ---------------------------------------------------------
-def parse_nested_device_spec(spec_str: str) -> dict:
-    if not spec_str:
-        return {
-            "mobile": {"android": ["chrome", "samsung", "firefox", "opera"], "ios": ["safari", "chrome", "firefox", "opera"]},
-            "desktop": {"windows": ["chrome", "edge", "firefox", "opera"], "mac": ["safari", "chrome", "firefox", "opera"], "linux": ["chrome", "firefox", "opera"]}
-        }
-
-    tree = {}
-    tokens = [t.strip() for t in re.split(r",(?![^{]*\})", spec_str) if t.strip()]
-
-    for token in tokens:
-        match = re.match(r"^([a-zA-Z]+)(?:\{([^\}]+)\})?$", token)
-        if not match:
-            continue
-        category = match.group(1).lower()
-        sub_body = match.group(2)
-
-        if category not in ("mobile", "desktop"):
-            print(f"[WARN] Unknown category '{category}' in DEVICE_TYPE. Ignored.")
-            continue
-
-        tree[category] = {}
-
-        if not sub_body:
-            if category == "mobile":
-                tree[category] = {"android": ["chrome", "samsung", "firefox", "opera"], "ios": ["safari", "chrome", "firefox", "opera"]}
-            else:
-                tree[category] = {"windows": ["chrome", "edge", "firefox", "opera"], "mac": ["safari", "chrome", "firefox", "opera"], "linux": ["chrome", "firefox", "opera"]}
-            continue
-
-        sub_items = [s.strip() for s in re.split(r",(?![^{]*\})", sub_body) if s.strip()]
-        for sub_item in sub_items:
-            os_match = re.match(r"^([a-zA-Z]+)(?:\{([^\}]+)\})?$", sub_item)
-            if not os_match:
-                continue
-            os_name = os_match.group(1).lower()
-            browsers_raw = os_match.group(2)
-            if browsers_raw:
-                browsers = [b.strip().lower() for b in browsers_raw.split(",") if b.strip()]
-            else:
-                if os_name == "windows":
-                    browsers = ["chrome", "edge", "firefox", "opera"]
-                elif os_name in ("mac", "macos"):
-                    browsers = ["safari", "chrome", "firefox", "opera"]
-                elif os_name == "linux":
-                    browsers = ["chrome", "firefox", "opera"]
-                elif os_name == "ios":
-                    browsers = ["safari", "chrome", "firefox", "opera"]
-                elif os_name == "android":
-                    browsers = ["chrome", "samsung", "firefox", "opera"]
-                else:
-                    browsers = ["chrome"]
-
-            tree[category][os_name] = browsers
-
-    if not tree:
-        tree = {
-            "mobile": {"android": ["chrome"], "ios": ["safari"]},
-            "desktop": {"windows": ["chrome"]}
-        }
-    return tree
-
-RAW_DEVICE_SPEC = get_env("DEVICE_TYPE", "desktop,mobile")
-DEVICE_TREE = parse_nested_device_spec(RAW_DEVICE_SPEC)
-
-
-# ---------------------------------------------------------
-# Dynamic UA Resolver (Non-Repeating per Cycle)
+# Isolated UA Resolver (Strict Category Guarantees)
 # ---------------------------------------------------------
 def get_ua_for_selection(category: str, os_name: str, browser: str) -> tuple:
-    # If user provided manual list, it overrides and runs fully random
+    # 1. Custom Overrides
     if category == "mobile" and CUSTOM_MOBILE_UAS:
         return random.choice(CUSTOM_MOBILE_UAS), "Custom:Mobile"
     if category == "desktop" and CUSTOM_DESKTOP_UAS:
         return random.choice(CUSTOM_DESKTOP_UAS), "Custom:Desktop"
 
-    # Default Logic: Windows
-    if os_name == "windows":
-        if browser == "chrome":
-            return sample_weighted_browser(WIN_CHROME_HIGH, WIN_CHROME_MID, WIN_CHROME_LOW), "Win:Chrome"
-        elif browser == "edge":
-            return sample_weighted_browser(WIN_EDGE_HIGH, WIN_EDGE_MID, WIN_EDGE_LOW), "Win:Edge"
-        elif browser == "firefox":
-            return sample_weighted_browser(WIN_FF_HIGH, WIN_FF_MID, WIN_FF_LOW), "Win:Firefox"
-        elif browser == "opera":
-            return sample_weighted_browser(WIN_OPERA_HIGH, WIN_OPERA_MID, WIN_OPERA_LOW), "Win:Opera"
-        return sample_weighted_browser(WIN_CHROME_HIGH, WIN_CHROME_MID, WIN_CHROME_LOW), "Win:Chrome"
+    # 2. Strict MOBILE Branch
+    if category == "mobile":
+        if os_name == "android":
+            if browser == "chrome":
+                return sample_weighted_browser(ANDROID_CHROME_HIGH, ANDROID_CHROME_MID, ANDROID_CHROME_LOW), "Android:Chrome"
+            elif browser == "samsung":
+                return sample_weighted_browser(ANDROID_SAMSUNG_HIGH, ANDROID_SAMSUNG_MID, ANDROID_SAMSUNG_LOW), "Android:Samsung"
+            elif browser == "firefox":
+                return random.choice(ANDROID_FF_ALL), "Android:Firefox"
+            elif browser == "opera":
+                return random.choice(ANDROID_OPERA_ALL), "Android:Opera"
+            # Fallback Android
+            return sample_weighted_browser(ANDROID_CHROME_HIGH, ANDROID_CHROME_MID, ANDROID_CHROME_LOW), "Android:Chrome"
 
-    # Default Logic: macOS
-    elif os_name in ("mac", "macos"):
-        if browser == "safari":
-            return sample_weighted_browser(MAC_SAFARI_HIGH, MAC_SAFARI_MID, MAC_SAFARI_LOW), "Mac:Safari"
-        elif browser == "chrome":
-            return sample_weighted_browser(MAC_CHROME_HIGH, MAC_CHROME_MID, MAC_CHROME_LOW), "Mac:Chrome"
-        elif browser == "firefox":
-            return sample_weighted_browser(MAC_FF_HIGH, MAC_FF_MID, MAC_FF_LOW), "Mac:Firefox"
-        elif browser == "opera":
-            return random.choice(MAC_OPERA_ALL), "Mac:Opera"
-        return sample_weighted_browser(MAC_SAFARI_HIGH, MAC_SAFARI_MID, MAC_SAFARI_LOW), "Mac:Safari"
+        elif os_name == "ios":
+            if browser == "chrome":
+                return sample_weighted_browser(IOS_CHROME_HIGH, IOS_CHROME_MID, IOS_CHROME_LOW), "iOS:Chrome"
+            elif browser == "firefox":
+                return random.choice(IOS_FF_ALL), "iOS:Firefox"
+            elif browser == "opera":
+                return random.choice(IOS_OPERA_ALL), "iOS:Opera"
+            elif browser == "safari":
+                return sample_weighted_browser(IOS_SAFARI_HIGH, IOS_SAFARI_MID, IOS_SAFARI_LOW), "iOS:Safari"
+            # Fallback iOS
+            return sample_weighted_browser(IOS_SAFARI_HIGH, IOS_SAFARI_MID, IOS_SAFARI_LOW), "iOS:Safari"
 
-    # Default Logic: Linux
-    elif os_name == "linux":
-        if browser == "firefox":
-            return sample_weighted_browser(LINUX_FF_HIGH, LINUX_FF_MID, LINUX_FF_LOW), "Linux:Firefox"
-        elif browser == "opera":
-            return random.choice(LINUX_OPERA_ALL), "Linux:Opera"
-        return sample_weighted_browser(LINUX_CHROME_HIGH, LINUX_CHROME_MID, LINUX_CHROME_LOW), "Linux:Chrome"
-
-    # Default Logic: iOS
-    elif os_name == "ios":
-        if browser == "chrome":
-            return sample_weighted_browser(IOS_CHROME_HIGH, IOS_CHROME_MID, IOS_CHROME_LOW), "iOS:Chrome"
-        elif browser == "firefox":
-            return random.choice(IOS_FF_ALL), "iOS:Firefox"
-        elif browser == "opera":
-            return random.choice(IOS_OPERA_ALL), "iOS:Opera"
-        return sample_weighted_browser(IOS_SAFARI_HIGH, IOS_SAFARI_MID, IOS_SAFARI_LOW), "iOS:Safari"
-
-    # Default Logic: Android
-    elif os_name == "android":
-        if browser == "samsung":
-            return sample_weighted_browser(ANDROID_SAMSUNG_HIGH, ANDROID_SAMSUNG_MID, ANDROID_SAMSUNG_LOW), "Android:Samsung"
-        elif browser == "firefox":
-            return random.choice(ANDROID_FF_ALL), "Android:Firefox"
-        elif browser == "opera":
-            return random.choice(ANDROID_OPERA_ALL), "Android:Opera"
+        # Safe Mobile Fallback
         return sample_weighted_browser(ANDROID_CHROME_HIGH, ANDROID_CHROME_MID, ANDROID_CHROME_LOW), "Android:Chrome"
 
-    return sample_weighted_browser(WIN_CHROME_HIGH, WIN_CHROME_MID, WIN_CHROME_LOW), "Win:Chrome"
+    # 3. Strict DESKTOP Branch
+    if category == "desktop":
+        if os_name == "windows":
+            if browser == "chrome":
+                return sample_weighted_browser(WIN_CHROME_HIGH, WIN_CHROME_MID, WIN_CHROME_LOW), "Win:Chrome"
+            elif browser == "edge":
+                return sample_weighted_browser(WIN_EDGE_HIGH, WIN_EDGE_MID, WIN_EDGE_LOW), "Win:Edge"
+            elif browser == "firefox":
+                return sample_weighted_browser(WIN_FF_HIGH, WIN_FF_MID, WIN_FF_LOW), "Win:Firefox"
+            elif browser == "opera":
+                return sample_weighted_browser(WIN_OPERA_HIGH, WIN_OPERA_MID, WIN_OPERA_LOW), "Win:Opera"
+            return sample_weighted_browser(WIN_CHROME_HIGH, WIN_CHROME_MID, WIN_CHROME_LOW), "Win:Chrome"
+
+        elif os_name in ("mac", "macos"):
+            if browser == "safari":
+                return sample_weighted_browser(MAC_SAFARI_HIGH, MAC_SAFARI_MID, MAC_SAFARI_LOW), "Mac:Safari"
+            elif browser == "chrome":
+                return sample_weighted_browser(MAC_CHROME_HIGH, MAC_CHROME_MID, MAC_CHROME_LOW), "Mac:Chrome"
+            elif browser == "firefox":
+                return sample_weighted_browser(MAC_FF_HIGH, MAC_FF_MID, MAC_FF_LOW), "Mac:Firefox"
+            elif browser == "opera":
+                return random.choice(MAC_OPERA_ALL), "Mac:Opera"
+            return sample_weighted_browser(MAC_SAFARI_HIGH, MAC_SAFARI_MID, MAC_SAFARI_LOW), "Mac:Safari"
+
+        elif os_name == "linux":
+            if browser == "firefox":
+                return sample_weighted_browser(LINUX_FF_HIGH, LINUX_FF_MID, LINUX_FF_LOW), "Linux:Firefox"
+            elif browser == "opera":
+                return random.choice(LINUX_OPERA_ALL), "Linux:Opera"
+            return sample_weighted_browser(LINUX_CHROME_HIGH, LINUX_CHROME_MID, LINUX_CHROME_LOW), "Linux:Chrome"
+
+        # Safe Desktop Fallback
+        return sample_weighted_browser(WIN_CHROME_HIGH, WIN_CHROME_MID, WIN_CHROME_LOW), "Win:Chrome"
+
+    # Ultimate Safety Fallback
+    return sample_weighted_browser(ANDROID_CHROME_HIGH, ANDROID_CHROME_MID, ANDROID_CHROME_LOW), "Android:Chrome"
 
 
 def resolve_cycle_ua(used_uas_in_cycle: set) -> tuple:
@@ -613,7 +653,7 @@ def resolve_cycle_ua(used_uas_in_cycle: set) -> tuple:
     chosen_browser = random.choice(sub_os_dict[chosen_os])
 
     ua, label = "", ""
-    for _ in range(12):
+    for _ in range(15):
         ua, label = get_ua_for_selection(cat, chosen_os, chosen_browser)
         if ua not in used_uas_in_cycle:
             break
@@ -875,7 +915,7 @@ DEFAULT_REFERRERS = [
     "none",
     "https://www.google.com/",
     "https://www.youtube.com/",
-    "https://x.com/"
+    "https://t.co/"
 ]
 RAW_REFERRERS = parse_list("REFERRERS", DEFAULT_REFERRERS)
 REFERRERS = RAW_REFERRERS if RAW_REFERRERS else DEFAULT_REFERRERS
@@ -977,7 +1017,7 @@ def main():
     print(f"Browser Rendering       : {BROWSER_RENDERING}")
     print(f"Residential Proxies     : {'ENABLED (premium=true)' if RESIDENTIAL else 'DISABLED (Standard DataCenter)'}")
     print(f"Est. Credits Per Hit    : ~{calculate_credits(BROWSER_RENDERING, RESIDENTIAL)} credits")
-    print(f"Configured Device Specs : {DEVICE_TREE}")
+    print(f"Active Device Hierarchy : {DEVICE_TREE}")
     print(f"Post-Response Cooldown  : {POST_WAIT_MIN:.1f}s - {POST_WAIT_MAX:.1f}s")
     print(f"Worker Gap Interval     : {GAP_MIN:.1f}s - {GAP_MAX:.1f}s")
     print(f"Cycle Interval Range    : {CYCLE_MIN:.1f}s - {CYCLE_MAX:.1f}s")
