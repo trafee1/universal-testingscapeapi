@@ -286,9 +286,9 @@ LINUX_FF_MID = [
     "Mozilla/5.0 (X11; Linux x86_64; rv:135.0) Gecko/20100101 Firefox/135.0",
 ]
 LINUX_FF_LOW = [
-    "Mozilla/5.0 (X11; Linux x86_64; rv:132.0) Gecko/20100101 Firefox/132.0",
-    "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0",
-    "Mozilla/5.0 (X11; Linux x86_64; rv:125.0) Gecko/20100101 Firefox/125.0",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
 ]
 LINUX_OPERA_ALL = [
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 OPR/114.0.0.0",
@@ -699,7 +699,7 @@ def resolve_cycle_ua(used_uas_in_cycle: set) -> tuple:
 # =========================================================
 # OFFICIAL SCRAPERAPI STANDARD MASTER GEOS & TIER DEFAULTS
 # =========================================================
-# The official standard geotargeting countries supported on all basic/standard keys
+# Complete official catalog of all 50 Standard Geotargeting countries
 OFFICIAL_STANDARD_SCRAPERAPI = {
     "ar": "Argentina",
     "au": "Australia",
@@ -781,7 +781,8 @@ DEFAULT_TIER_TABLE = {
 def parse_and_validate_country_config(raw_cfg: str):
     inc_raw = set()
     exc_raw = set()
-    is_custom_configured = bool(raw_cfg.strip())
+    raw_cfg = raw_cfg.strip()
+    is_custom_configured = bool(raw_cfg)
 
     if is_custom_configured:
         tokens = [t.strip() for t in re.split(r",(?![^{]*\})", raw_cfg) if t.strip()]
@@ -795,6 +796,7 @@ def parse_and_validate_country_config(raw_cfg: str):
                 else:
                     exc_raw.update(codes)
             else:
+                # Direct code(s) like "ch" or "ch,de" treated directly as explicit inclusions
                 codes = [c.strip().lower() for c in token.split(",") if c.strip()]
                 inc_raw.update(codes)
 
@@ -815,7 +817,7 @@ def parse_and_validate_country_config(raw_cfg: str):
         inc_raw.difference_update(unsupported_codes)
         exc_raw.difference_update(unsupported_codes)
 
-    # Contradiction resolution: include wins over exclude
+    # Contradiction resolution: explicit inclusion wins over exclusion
     contradictions = inc_raw.intersection(exc_raw)
     if contradictions:
         print("\n" + "=" * 70)
@@ -825,7 +827,6 @@ def parse_and_validate_country_config(raw_cfg: str):
         print("=" * 70 + "\n")
         exc_raw.difference_update(contradictions)
 
-    # Build active candidate pool
     filtered_tiers = {"T1": [], "T2": [], "T3": []}
     custom_flat_pool = []
 
@@ -835,19 +836,25 @@ def parse_and_validate_country_config(raw_cfg: str):
             for code_upper, code_lower, c_name in pairs:
                 filtered_tiers[tier].append((tier, code_upper, code_lower, c_name))
     else:
-        # Manual variable configuration: Allow all official Standard ScraperAPI locations
-        for code, name in OFFICIAL_STANDARD_SCRAPERAPI.items():
-            if exc_raw and code in exc_raw:
-                continue
-            if inc_raw and code not in inc_raw:
-                continue
-            custom_flat_pool.append(("STD", code.upper(), code, name))
+        # STRICT MANUAL SELECTION:
+        # If user explicitly specified inclusions, ONLY those inclusions are allowed.
+        if inc_raw:
+            for code in inc_raw:
+                if code in OFFICIAL_STANDARD_SCRAPERAPI:
+                    name = OFFICIAL_STANDARD_SCRAPERAPI[code]
+                    custom_flat_pool.append(("CUSTOM", code.upper(), code, name))
+        else:
+            # If user only specified exclusions, take all standard minus exclusions
+            for code, name in OFFICIAL_STANDARD_SCRAPERAPI.items():
+                if code in exc_raw:
+                    continue
+                custom_flat_pool.append(("CUSTOM", code.upper(), code, name))
 
         if not custom_flat_pool:
             print("\n" + "!" * 70)
-            print(" [WARN] No valid countries remaining after filter. Defaulting to US (us).")
+            print(" [WARN] No valid countries remaining after filter. Defaulting pool to US (us).")
             print("!" * 70 + "\n")
-            custom_flat_pool = [("STD", "US", "us", "United States")]
+            custom_flat_pool = [("CUSTOM", "US", "us", "United States")]
 
     return inc_raw, exc_raw, unsupported_codes, is_custom_configured, filtered_tiers, custom_flat_pool
 
@@ -855,35 +862,29 @@ RAW_COUNTRY_CONF = get_env("COUNTRY", get_env("COUNTRIES", ""))
 INC_COUNTRIES, EXC_COUNTRIES, INVALID_INPUT_COUNTRIES, IS_CUSTOM_CONFIGURED, FILTERED_TIERS, CUSTOM_FLAT_POOL = parse_and_validate_country_config(RAW_COUNTRY_CONF)
 
 def print_pinned_country_diagnostic():
-    print("=" * 85)
+    print("=" * 88)
     print("           PINNED SCRAPERAPI STANDARD GEOTARGETING AUDIT")
-    print("=" * 85)
-    
-    # Sort helper to sort tuples by full country name alphabetically
-    def sort_by_name(items):
-        return sorted(items, key=lambda x: x[1].lower())
+    print("=" * 88)
 
     if IS_CUSTOM_CONFIGURED:
-        # Get sorted list by country full name
         inc_sorted = sorted([c for c in INC_COUNTRIES if c in OFFICIAL_STANDARD_SCRAPERAPI], 
                             key=lambda c: OFFICIAL_STANDARD_SCRAPERAPI[c].lower())
         exc_sorted = sorted([c for c in EXC_COUNTRIES if c in OFFICIAL_STANDARD_SCRAPERAPI], 
                             key=lambda c: OFFICIAL_STANDARD_SCRAPERAPI[c].lower())
         
-        inc_disp = ", ".join([f"{c} ({OFFICIAL_STANDARD_SCRAPERAPI[c]})" for c in inc_sorted]) if inc_sorted else "ALL STANDARD"
+        inc_disp = ", ".join([f"{c} ({OFFICIAL_STANDARD_SCRAPERAPI[c]})" for c in inc_sorted]) if inc_sorted else "NONE (Using Exclusions)"
         exc_disp = ", ".join([f"{c} ({OFFICIAL_STANDARD_SCRAPERAPI[c]})" for c in exc_sorted]) if exc_sorted else "NONE"
         inv_disp = ", ".join(sorted(list(INVALID_INPUT_COUNTRIES))) if INVALID_INPUT_COUNTRIES else "NONE"
         
-        print(f"  * Mode                       : CUSTOM OVERRIDE (COUNTRY variable active)")
+        print(f"  * Mode                       : STRICT CUSTOM OVERRIDE (COUNTRY variable active)")
         print(f"  * Configured Included Filter : {inc_disp}")
         print(f"  * Configured Excluded Filter : {exc_disp}")
         print(f"  * Rejected / Non-Standard    : {inv_disp}")
         print(f"  * Total Active Rotation Pool : {len(CUSTOM_FLAT_POOL)} locations")
         
-        # Display active flat pool line by line left to right, sorted by full country name
         active_sorted = sorted(CUSTOM_FLAT_POOL, key=lambda x: x[3].lower())
         active_formatted = [f"{c[2]} {c[3]}" for c in active_sorted]
-        print(f"  * Active Rotation Pool       :")
+        print(f"  * Active Rotation Pool (Strictly Selected):")
         for i in range(0, len(active_formatted), 2):
             col1 = active_formatted[i]
             col2 = active_formatted[i+1] if i+1 < len(active_formatted) else ""
@@ -892,7 +893,6 @@ def print_pinned_country_diagnostic():
             else:
                 print(f"    {col1}")
     else:
-        # Default Presets sorted alphabetically by full country name
         t1_sorted = sorted(DEFAULT_TIER_TABLE["T1"], key=lambda x: x[2].lower())
         t2_sorted = sorted(DEFAULT_TIER_TABLE["T2"], key=lambda x: x[2].lower())
         t3_sorted = sorted(DEFAULT_TIER_TABLE["T3"], key=lambda x: x[2].lower())
@@ -905,16 +905,15 @@ def print_pinned_country_diagnostic():
         print(f"  * Default Tier 1 (50%)       : {', '.join(t1_items)}")
         print(f"  * Default Tier 2 (35%)       : {', '.join(t2_items)}")
         print(f"  * Default Tier 3 (15%)       : {', '.join(t3_items)}")
-        print(f"  * Manual Override Variable   : NONE (Supply COUNTRY or COUNTRIES to override)")
+        print(f"  * Manual Override Variable   : NONE (Set COUNTRY or COUNTRIES to override)")
 
-    print("-" * 85)
-    print("  * Official Standard Supported Catalog (Sorted by Full Country Name):")
+    print("-" * 88)
+    print("  * Full Official Standard Catalog (Sorted by Full Country Name):")
     
-    # Sort complete standard catalog by country full name
+    # Sort complete standard catalog alphabetically by full country name
     sorted_catalog = sorted(OFFICIAL_STANDARD_SCRAPERAPI.items(), key=lambda item: item[1].lower())
     formatted_catalog = [f"{code} {name}" for code, name in sorted_catalog]
 
-    # Two columns formatted line-by-line: Column 1 | Column 2 with fixed spacing
     for i in range(0, len(formatted_catalog), 2):
         col1 = formatted_catalog[i]
         col2 = formatted_catalog[i+1] if i+1 < len(formatted_catalog) else ""
@@ -923,7 +922,7 @@ def print_pinned_country_diagnostic():
         else:
             print(f"    {col1}")
 
-    print("=" * 85 + "\n")
+    print("=" * 88 + "\n")
 
 def pick_country():
     if not IS_CUSTOM_CONFIGURED:
@@ -941,6 +940,7 @@ def pick_country():
         t = random.choice(available_tiers)
         return random.choice(FILTERED_TIERS[t])
     else:
+        # Strictly picks from custom selection only
         return random.choice(CUSTOM_FLAT_POOL)
 
 
@@ -1227,7 +1227,7 @@ def main():
         print("!" * 70 + "\n")
         sys.exit(1)
 
-    # Print Pinned Standard Geotargeting Diagnostic Banner with names and codes
+    # Print Pinned Standard Geotargeting Diagnostic Banner
     print_pinned_country_diagnostic()
 
     print(f"Total Active Keys       : {len(pool.active_keys)}")
