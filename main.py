@@ -431,77 +431,82 @@ def sample_weighted_browser(high_list, mid_list, low_list):
 
 
 # ---------------------------------------------------------
-# Robust Nested DEVICE_TYPE Parser (Handles spaces & braces)
+# Robust Nested DEVICE_TYPE Parser (Recursive Block Tokenizer)
 # ---------------------------------------------------------
-def parse_top_level_blocks(text: str) -> list:
-    """Splits string by comma, but ignores commas inside curly braces."""
-    blocks = []
-    current = []
-    brace_depth = 0
-    for char in text:
-        if char == '{':
-            brace_depth += 1
-            current.append(char)
-        elif char == '}':
-            brace_depth = max(0, brace_depth - 1)
-            current.append(char)
-        elif char == ',' and brace_depth == 0:
-            token = "".join(current).strip()
+def parse_block_contents(s: str) -> list:
+    """Extracts comma-delimited tokens while respecting balanced { } brackets."""
+    items = []
+    depth = 0
+    buf = []
+    for ch in s:
+        if ch == '{':
+            depth += 1
+            buf.append(ch)
+        elif ch == '}':
+            depth = max(0, depth - 1)
+            buf.append(ch)
+        elif ch == ',' and depth == 0:
+            token = "".join(buf).strip()
             if token:
-                blocks.append(token)
-            current = []
+                items.append(token)
+            buf = []
         else:
-            current.append(char)
-    last_tok = "".join(current).strip()
-    if last_tok:
-        blocks.append(last_tok)
-    return blocks
+            buf.append(ch)
+    last = "".join(buf).strip()
+    if last:
+        items.append(last)
+    return items
 
 def parse_nested_device_spec(spec_str: str) -> dict:
     spec_str = spec_str.strip()
+    tree = {}
     if not spec_str:
         return {
             "mobile": {"android": ["chrome", "samsung", "firefox", "opera"], "ios": ["safari", "chrome", "firefox", "opera"]},
             "desktop": {"windows": ["chrome", "edge", "firefox", "opera"], "mac": ["safari", "chrome", "firefox", "opera"], "linux": ["chrome", "firefox", "opera"]}
         }
 
-    tree = {}
-    top_blocks = parse_top_level_blocks(spec_str)
-
-    for block in top_blocks:
-        match = re.match(r"^([a-zA-Z]+)(?:\s*\{\s*(.*)\s*\})?$", block, re.DOTALL)
-        if not match:
-            continue
-        category = match.group(1).lower()
-        sub_body = match.group(2)
-
-        if category not in ("mobile", "desktop"):
-            print(f"[WARN] Unknown category '{category}' in DEVICE_TYPE. Ignored.")
+    top_tokens = parse_block_contents(spec_str)
+    for token in top_tokens:
+        token = token.strip()
+        if not token:
             continue
 
-        tree[category] = {}
+        if "{" in token and token.endswith("}"):
+            cat = token[:token.index("{")].strip().lower()
+            inner = token[token.index("{") + 1:-1].strip()
+        else:
+            cat = token.lower()
+            inner = ""
 
-        if not sub_body:
-            # Default full selection for that specific device category
-            if category == "mobile":
-                tree[category] = {"android": ["chrome", "samsung", "firefox", "opera"], "ios": ["safari", "chrome", "firefox", "opera"]}
+        if cat not in ("mobile", "desktop"):
+            continue
+
+        tree[cat] = {}
+
+        if not inner:
+            if cat == "mobile":
+                tree[cat] = {"android": ["chrome", "samsung", "firefox", "opera"], "ios": ["safari", "chrome", "firefox", "opera"]}
             else:
-                tree[category] = {"windows": ["chrome", "edge", "firefox", "opera"], "mac": ["safari", "chrome", "firefox", "opera"], "linux": ["chrome", "firefox", "opera"]}
+                tree[cat] = {"windows": ["chrome", "edge", "firefox", "opera"], "mac": ["safari", "chrome", "firefox", "opera"], "linux": ["chrome", "firefox", "opera"]}
             continue
 
-        # Parse OS-level blocks
-        os_blocks = parse_top_level_blocks(sub_body)
-        for os_block in os_blocks:
-            os_match = re.match(r"^([a-zA-Z]+)(?:\s*\{\s*(.*)\s*\})?$", os_block, re.DOTALL)
-            if not os_match:
+        # Parse OS-level structures inside the device category
+        os_tokens = parse_block_contents(inner)
+        for os_tok in os_tokens:
+            os_tok = os_tok.strip()
+            if not os_tok:
                 continue
-            os_name = os_match.group(1).lower()
-            browsers_raw = os_match.group(2)
 
-            if browsers_raw:
-                # Comma separated browsers, strip extra spaces
-                browsers = [b.strip().lower() for b in browsers_raw.split(",") if b.strip()]
+            if "{" in os_tok and os_tok.endswith("}"):
+                os_name = os_tok[:os_tok.index("{")].strip().lower()
+                browser_inner = os_tok[os_tok.index("{") + 1:-1].strip()
+                browsers = [b.strip().lower() for b in browser_inner.split(",") if b.strip()]
             else:
+                os_name = os_tok.lower()
+                browsers = []
+
+            if not browsers:
                 if os_name == "windows":
                     browsers = ["chrome", "edge", "firefox", "opera"]
                 elif os_name in ("mac", "macos"):
@@ -515,11 +520,20 @@ def parse_nested_device_spec(spec_str: str) -> dict:
                 else:
                     browsers = ["chrome"]
 
-            tree[category][os_name] = browsers
+            tree[cat][os_name] = browsers
 
-    if not tree:
-        print("[CRITICAL] Could not parse DEVICE_TYPE correctly. Falling back to safe mobile default.")
-        tree = {"mobile": {"android": ["chrome"]}}
+    # Absolute safety fallback if string had unexpected syntax
+    if not tree or not any(tree.values()):
+        print("[CRITICAL] Could not parse DEVICE_TYPE syntax. Using default safe configuration.")
+        tree = {"mobile": {"android": ["chrome", "samsung", "firefox"]}}
+
+    # Ensure every category has at least one valid OS mapped
+    for c in list(tree.keys()):
+        if not tree[c]:
+            if c == "mobile":
+                tree[c] = {"android": ["chrome", "samsung", "firefox"]}
+            else:
+                tree[c] = {"windows": ["chrome", "edge", "firefox"]}
 
     return tree
 
@@ -570,16 +584,16 @@ if CUSTOM_MOBILE_UAS:
 
 
 # ---------------------------------------------------------
-# Isolated UA Resolver (Strict Category Guarantees)
+# Isolated UA Resolver (100% Strict Category Isolation)
 # ---------------------------------------------------------
 def get_ua_for_selection(category: str, os_name: str, browser: str) -> tuple:
-    # 1. Custom Overrides
+    # 1. User manual override lists
     if category == "mobile" and CUSTOM_MOBILE_UAS:
         return random.choice(CUSTOM_MOBILE_UAS), "Custom:Mobile"
     if category == "desktop" and CUSTOM_DESKTOP_UAS:
         return random.choice(CUSTOM_DESKTOP_UAS), "Custom:Desktop"
 
-    # 2. Strict MOBILE Branch
+    # 2. Strict MOBILE Branch (Will never touch Desktop strings)
     if category == "mobile":
         if os_name == "android":
             if browser == "chrome":
@@ -590,7 +604,6 @@ def get_ua_for_selection(category: str, os_name: str, browser: str) -> tuple:
                 return random.choice(ANDROID_FF_ALL), "Android:Firefox"
             elif browser == "opera":
                 return random.choice(ANDROID_OPERA_ALL), "Android:Opera"
-            # Fallback Android
             return sample_weighted_browser(ANDROID_CHROME_HIGH, ANDROID_CHROME_MID, ANDROID_CHROME_LOW), "Android:Chrome"
 
         elif os_name == "ios":
@@ -602,13 +615,11 @@ def get_ua_for_selection(category: str, os_name: str, browser: str) -> tuple:
                 return random.choice(IOS_OPERA_ALL), "iOS:Opera"
             elif browser == "safari":
                 return sample_weighted_browser(IOS_SAFARI_HIGH, IOS_SAFARI_MID, IOS_SAFARI_LOW), "iOS:Safari"
-            # Fallback iOS
             return sample_weighted_browser(IOS_SAFARI_HIGH, IOS_SAFARI_MID, IOS_SAFARI_LOW), "iOS:Safari"
 
-        # Safe Mobile Fallback
         return sample_weighted_browser(ANDROID_CHROME_HIGH, ANDROID_CHROME_MID, ANDROID_CHROME_LOW), "Android:Chrome"
 
-    # 3. Strict DESKTOP Branch
+    # 3. Strict DESKTOP Branch (Will never touch Mobile strings)
     if category == "desktop":
         if os_name == "windows":
             if browser == "chrome":
@@ -639,18 +650,24 @@ def get_ua_for_selection(category: str, os_name: str, browser: str) -> tuple:
                 return random.choice(LINUX_OPERA_ALL), "Linux:Opera"
             return sample_weighted_browser(LINUX_CHROME_HIGH, LINUX_CHROME_MID, LINUX_CHROME_LOW), "Linux:Chrome"
 
-        # Safe Desktop Fallback
         return sample_weighted_browser(WIN_CHROME_HIGH, WIN_CHROME_MID, WIN_CHROME_LOW), "Win:Chrome"
 
-    # Ultimate Safety Fallback
     return sample_weighted_browser(ANDROID_CHROME_HIGH, ANDROID_CHROME_MID, ANDROID_CHROME_LOW), "Android:Chrome"
 
 
 def resolve_cycle_ua(used_uas_in_cycle: set) -> tuple:
-    cat = random.choice(list(DEVICE_TREE.keys()))
-    sub_os_dict = DEVICE_TREE[cat]
-    chosen_os = random.choice(list(sub_os_dict.keys()))
-    chosen_browser = random.choice(sub_os_dict[chosen_os])
+    categories = list(DEVICE_TREE.keys())
+    cat = random.choice(categories) if categories else "mobile"
+
+    sub_os_dict = DEVICE_TREE.get(cat, {})
+    if not sub_os_dict:
+        sub_os_dict = {"android": ["chrome"]} if cat == "mobile" else {"windows": ["chrome"]}
+
+    os_choices = list(sub_os_dict.keys())
+    chosen_os = random.choice(os_choices) if os_choices else ("android" if cat == "mobile" else "windows")
+
+    browser_choices = sub_os_dict.get(chosen_os, [])
+    chosen_browser = random.choice(browser_choices) if browser_choices else "chrome"
 
     ua, label = "", ""
     for _ in range(15):
