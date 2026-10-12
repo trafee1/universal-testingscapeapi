@@ -706,7 +706,7 @@ def resolve_cycle_ua(used_uas_in_cycle: set) -> tuple:
 # ---------------------------------------------------------
 TIER_TABLE = {
     "T1": [
-        ("FR", "fr"), ("DE", "de"), ("NL", "nl"), ("ES", "es"),
+        ("FR", "fr"), ("NL", "nl"), ("ES", "es"),
         ("IT", "it"), ("PL", "pl"), ("SE", "se"), ("BR", "br"),
         ("KR", "kr"), ("TR", "tr"), ("VN", "vn"), ("ID", "id"),
         ("CA", "ca"), ("JP", "jp"), ("SG", "sg")
@@ -716,7 +716,7 @@ TIER_TABLE = {
         ("AE", "ae"), ("MX", "mx"), ("TH", "th"), ("PH", "ph")
     ],
     "T3": [
-        ("IN", "in"), ("SA", "sa"), ("HK", "hk"), ("TW", "tw")
+         ("SA", "sa"), ("HK", "hk"), ("TW", "tw")
     ]
 }
 
