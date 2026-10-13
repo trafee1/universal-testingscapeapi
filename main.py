@@ -1,5 +1,5 @@
 import concurrent.futures
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 import random
 import re
@@ -1028,7 +1028,7 @@ class KeyPoolManager:
     def mark_dead(self, key_obj: ManagedKey, reason: str):
         if key_obj in self.active_keys:
             self.active_keys.remove(key_obj)
-            ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+            ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
             self.dead_keys.append((key_obj, reason, ts))
 
             print("\n" + "#" * 70)
@@ -1055,6 +1055,7 @@ class KeyPoolManager:
 RAW_KEYS = get_env("API_KEYS", get_env("SCRAPERAPI_KEYS", ""))
 pool = KeyPoolManager(RAW_KEYS)
 
+MATCH_IP_LANGUAGE = parse_bool("LANGUAGE_ACCORDING_TO_IP", default=False)
 WORKER_MIN, WORKER_MAX = parse_range("WORKER_COUNT_RANGE", 5, 7)
 GAP_MIN, GAP_MAX = parse_range("WORKER_GAP_RANGE", 8.0, 12.0)
 CYCLE_MIN, CYCLE_MAX = parse_range("CYCLE_INTERVAL_RANGE", 50.0, 70.0)
@@ -1121,13 +1122,19 @@ def execute_bot(bot_id: int, total_bots: int, target_url: str, slug: str, ltype:
 
     url = f"http://api.scraperapi.com?{urllib.parse.urlencode(params)}"
     
+    # Determine language based on toggle and requested country
+    if MATCH_IP_LANGUAGE and code_lower and code_upper:
+        dynamic_lang = f"{code_lower}-{code_upper},{code_lower};q=0.9,en-US;q=0.8,en;q=0.5"
+    else:
+        dynamic_lang = "en-US,en;q=0.9"
+
     headers = {
         "User-Agent": selected_ua,
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.5",
+        "Accept-Language": dynamic_lang,
         "Connection": "close"
-        
     }
+    
     if selected_cat == "mobile":
         headers["Sec-CH-UA-Mobile"] = "?1"
         headers["Sec-CH-UA-Platform"] = '"Android"' if "Android" in selected_ua else '"iOS"'
@@ -1170,9 +1177,13 @@ def execute_bot(bot_id: int, total_bots: int, target_url: str, slug: str, ltype:
                 )
 
     except urllib.error.HTTPError as e:
-        raw_detail = e.read().decode("utf-8", errors="ignore")[:70].strip()
+        try:
+            raw_detail = e.read().decode("utf-8", errors="ignore").strip()
+        except Exception:
+            raw_detail = "Could not read error body"
+            
         if e.code in (401, 403):
-            reason_msg = f"HTTP {e.code} Credits Exhausted / Invalid Key ({raw_detail})"
+            reason_msg = f"HTTP {e.code} - Actual ScraperAPI Error: {raw_detail}"
             pool.mark_dead(key_obj, reason_msg)
         elif e.code == 429:
             print(f"[Bot-{bot_id}] [{key_obj.tag}] [Target: {truncated_target}] [Credits: 0] [TRANSIENT] HTTP 429 Rate limit exceeded")
@@ -1224,6 +1235,7 @@ def main():
     print(f"Post-Response Cooldown  : {POST_WAIT_MIN:.1f}s - {POST_WAIT_MAX:.1f}s")
     print(f"Worker Gap Interval     : {GAP_MIN:.1f}s - {GAP_MAX:.1f}s")
     print(f"Cycle Interval Range    : {CYCLE_MIN:.1f}s - {CYCLE_MAX:.1f}s")
+    print(f"Dynamic IP Language     : {MATCH_IP_LANGUAGE}")
     print("==================================================\n")
 
     cycle_num = 1
