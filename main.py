@@ -946,10 +946,13 @@ BROWSER_RENDERING = get_env("BROWSER_RENDERING", "true").lower()
 RESIDENTIAL = parse_bool("RESIDENTIAL", default=False)
 
 # ---------------------------------------------------------
-# Updated Variables: CUSTOM_HEADER & REFERER (Case-Insensitive, Default ON)
+# Required Variables (Case-Insensitive, Defaults Set to True)
 # ---------------------------------------------------------
-CUSTOM_HEADER_ENABLED = parse_bool("CUSTOM_HEADER", default=True)
-REFERER_ENABLED = parse_bool("REFERER", default=True)
+# custom_header: Controls whether custom header options/injections are active
+CUSTOM_HEADER = parse_bool("CUSTOM_HEADER", default=True)
+
+# referer: Controls whether referer headers are attached by default
+REFERER = parse_bool("REFERER", default=True)
 
 # Real Default Referrers (Facebook, Instagram, Twitter/X t.co, LinkedIn, Snapchat, Google, YouTube)
 DEFAULT_REFERRERS = [
@@ -962,10 +965,10 @@ DEFAULT_REFERRERS = [
     "https://www.youtube.com/"
 ]
 
-# Check if explicit user-defined referrers are passed via environment variables (REFERRERS or REFERER_URLS)
-RAW_REFERRERS = parse_list("REFERRERS", parse_list("REFERER_URLS", []))
+# Check if explicit user-defined referrers are passed via environment variables (REFERRERS or REFERER)
+RAW_REFERRERS = parse_list("REFERRERS", parse_list("REFERER", []))
 
-if RAW_REFERRERS:
+if RAW_REFERRERS and not (len(RAW_REFERRERS) == 1 and RAW_REFERRERS[0].lower() in ("true", "false", "1", "0", "yes", "no", "on", "off")):
     IS_CUSTOM_REFERRER = True
     REFERRERS = RAW_REFERRERS
 else:
@@ -1017,20 +1020,19 @@ def execute_bot(bot_id: int, total_bots: int, target_url: str, slug: str, ltype:
         "User-Agent": selected_ua,
         "Connection": "close"
     }
-    
-    # Custom Header configuration governed by CUSTOM_HEADER variable
-    if CUSTOM_HEADER_ENABLED:
-        if selected_cat == "mobile":
-            headers["Sec-CH-UA-Mobile"] = "?1"
-            headers["Sec-CH-UA-Platform"] = '"Android"' if "Android" in selected_ua else '"iOS"'
-        else:
-            headers["Sec-CH-UA-Mobile"] = "?0"
 
-    # Determine Referer Header Logic & State governed by REFERER variable
+    if selected_cat == "mobile":
+        headers["Sec-CH-UA-Mobile"] = "?1"
+        headers["Sec-CH-UA-Platform"] = '"Android"' if "Android" in selected_ua else '"iOS"'
+    else:
+        headers["Sec-CH-UA-Mobile"] = "?0"
+
+    # Determine Referer Header Logic & State (Controlled strictly by `referer` variable)
     ref_status_str = "Disabled"
     ref_display = "None (Direct)"
 
-    if REFERER_ENABLED:
+    if REFERER:
+        # Check if custom referrers list contains explicit direct/none override strings
         if IS_CUSTOM_REFERRER and len(REFERRERS) == 1 and REFERRERS[0].lower() in ("none", "direct", "empty"):
             ref_status_str = "Explicitly None (Direct)"
             ref_display = "Direct"
@@ -1051,13 +1053,19 @@ def execute_bot(bot_id: int, total_bots: int, target_url: str, slug: str, ltype:
         ref_status_str = "Disabled"
         ref_display = "None (Direct)"
 
+    # If `custom_header` variable is False, strip custom headers or enforce clean state as requested
+    if not CUSTOM_HEADER:
+        headers.pop("Referer", None)
+        ref_status_str = "Disabled (Custom Header Off)"
+        ref_display = "None (Direct)"
+
     url = f"http://api.scraperapi.com?{urllib.parse.urlencode(params)}"
     req = urllib.request.Request(url, headers=headers)
 
     print(
         f"[Bot-{bot_id}/{total_bots}] [{tier}-{label}] [{selected_cat.upper()}:{os_label}] "
         f"[{ltype} {slug}] [Target: {truncated_target}] "
-        f"[Custom Header: {CUSTOM_HEADER_ENABLED}] [Referer Enabled: {REFERER_ENABLED}] [Ref Type: {ref_status_str}] [Ref: {ref_display}]"
+        f"[custom_header: {CUSTOM_HEADER}] [referer: {REFERER}] [Ref Type: {ref_status_str}] [Ref: {ref_display}]"
     )
 
     try:
@@ -1103,8 +1111,8 @@ def main():
     print(f"Total Active Keys       : {len(pool.active_keys)}")
     print(f"Browser Rendering       : {BROWSER_RENDERING}")
     print(f"Residential Proxies     : {'ENABLED (premium=true)' if RESIDENTIAL else 'DISABLED (Standard DataCenter)'}")
-    print(f"Custom Header (Switch)  : {CUSTOM_HEADER_ENABLED}")
-    print(f"Referer (Switch)        : {REFERER_ENABLED}")
+    print(f"custom_header (Switch)  : {CUSTOM_HEADER}")
+    print(f"referer (Switch)        : {REFERER}")
     print(f"Referer Source Mode     : {'Custom Override' if IS_CUSTOM_REFERRER else 'Real Defaults (FB, IG, t.co, X, LinkedIn, Snapchat, Google, YouTube + ~2.5% Direct)'}")
     print(f"Est. Credits Per Hit    : ~{calculate_credits(BROWSER_RENDERING, RESIDENTIAL)} credits")
     print(f"Active Device Hierarchy : {DEVICE_TREE}")
