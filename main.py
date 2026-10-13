@@ -89,7 +89,6 @@ def parse_tier_ratio(var_name="TIER_RATIO", default=(70.0, 25.0, 5.0)):
         if len(parts) == 1:
             t1 = float(parts[0])
             rem = max(0.0, 100.0 - t1)
-            # T2 is twice the size of T3 (2 parts vs 1 part out of 3)
             t2 = rem * (2.0 / 3.0)
             t3 = rem * (1.0 / 3.0)
             return (t1, t2, t3)
@@ -725,9 +724,8 @@ def resolve_cycle_ua(used_uas_in_cycle: set) -> tuple:
 
 
 # ---------------------------------------------------------
-# Full Non-Premium Datacenter Catalog & 3-Tier Classification
+# Full Datacenter Catalog & 3-Tier Classification
 # ---------------------------------------------------------
-# This pool is kept solely for dashboard display and validation references
 ALL_DATACENTER_NON_PREMIUM = [
     ("AE", "United Arab Emirates"), ("AR", "Argentina"), ("AT", "Austria"),
     ("AU", "Australia"), ("BE", "Belgium"), ("BG", "Bulgaria"),
@@ -758,7 +756,7 @@ TIER_3_CODES = {"BG", "GR", "HR", "HU", "ID", "MY", "PH", "RS", "SK", "TH", "UA"
 
 def print_datacenter_countries_table():
     print("+" + "-" * 76 + "+")
-    print(f"| {'ALL KNOWN DATACENTER POOL COUNTRIES (INCLUDES PREMIUM)':^74} |")
+    print(f"| {'ALL AVAILABLE DATACENTER COUNTRIES (FREE CREDIT)':^74} |")
     print("+" + "-" * 37 + "+" + "-" * 38 + "+")
     print(f"| {'Code  Full Name':<36} | {'Code  Full Name':<37} |")
     print("+" + "-" * 37 + "+" + "-" * 38 + "+")
@@ -778,8 +776,7 @@ def print_datacenter_countries_table():
 def parse_country_config(raw_cfg: str):
     inc = set()
     exc = set()
-    premium_warnings = set()
-    
+    warnings = set()
     if not raw_cfg.strip():
         return inc, exc
 
@@ -795,9 +792,8 @@ def parse_country_config(raw_cfg: str):
                     resolved_code = item.upper()
                 elif item in DATACENTER_NAME_TO_CODE:
                     resolved_code = DATACENTER_NAME_TO_CODE[item]
-
-                if resolved_code not in DATACENTER_CODE_TO_NAME:
-                    premium_warnings.add(resolved_code)
+                else:
+                    warnings.add(resolved_code)
 
                 if mode == "include":
                     inc.add(resolved_code)
@@ -811,9 +807,8 @@ def parse_country_config(raw_cfg: str):
                     resolved_code = item.upper()
                 elif item in DATACENTER_NAME_TO_CODE:
                     resolved_code = DATACENTER_NAME_TO_CODE[item]
-                
-                if resolved_code not in DATACENTER_CODE_TO_NAME:
-                    premium_warnings.add(resolved_code)
+                else:
+                    warnings.add(resolved_code)
                 
                 inc.add(resolved_code)
 
@@ -821,21 +816,15 @@ def parse_country_config(raw_cfg: str):
     if contradictions:
         print("\n" + "=" * 70)
         print(" [PINNED AUDIT ALERT] COUNTRY CONTRADICTION DETECTED!")
-        print(f" Overlapping countries present in both include and exclude: {sorted(list(contradictions))}")
-        print(" Default Rule: Explicitly included countries take precedence.")
+        print(f" Overlapping countries in include & exclude: {sorted(list(contradictions))}")
+        print(" Included countries take precedence.")
         print("=" * 70 + "\n")
         exc.difference_update(contradictions)
 
-    # Explanation Warning (Does not drop your config, just warns you)
-    if premium_warnings:
-        print("\n" + "!" * 75)
-        print(" [WARNING] PREMIUM OR UNSUPPORTED COUNTRY DETECTED IN YOUR INCLUDES")
-        print(f" You included: {', '.join(sorted(list(premium_warnings)))}")
-        print(" These codes were NOT found in the standard non-premium ALL_DATACENTER pool.")
-        print(" -> If RESIDENTIAL=false, ScraperAPI likely does NOT have free proxies here.")
-        print(" -> Instead of failing, the API will silently ignore it and give US traffic.")
-        print(" -> Fix: Remove them and pick from the dashboard list, or set RESIDENTIAL=true.")
-        print("!" * 75 + "\n")
+    if warnings:
+        print("\n" + "!" * 70)
+        print(f" [WARNING] Unrecognized codes in config: {', '.join(sorted(list(warnings)))}")
+        print("!" * 70 + "\n")
 
     return inc, exc
 
@@ -864,7 +853,6 @@ def build_datacenter_country_pools():
 VALID_T1, VALID_T2, VALID_T3 = build_datacenter_country_pools()
 TOTAL_VALID = len(VALID_T1) + len(VALID_T2) + len(VALID_T3)
 
-# Pass used_countries_in_cycle to avoid repeating countries in the same cycle
 def pick_datacenter_country(used_countries_in_cycle: set):
     tiers = []
     if VALID_T1: tiers.append(("T1", T1_RATIO, VALID_T1))
@@ -873,49 +861,37 @@ def pick_datacenter_country(used_countries_in_cycle: set):
 
     if tiers:
         total_weight = sum(w for t, w, pool in tiers)
-        
-        # Try up to 15 times to find a country that hasn't been used this cycle
-        for _ in range(15):
+        for _ in range(20):
             roll = random.uniform(0, total_weight)
             current = 0
             for t_name, w, pool in tiers:
                 current += w
                 if roll <= current:
                     c_up, c_low, name = random.choice(pool)
-                    
-                    # If unique OR if our available pool is too small to avoid duplicates
-                    if c_up not in used_countries_in_cycle or sum(len(p) for t, w, p in tiers) <= len(used_countries_in_cycle):
+                    if c_up not in used_countries_in_cycle or TOTAL_VALID <= len(used_countries_in_cycle):
                         used_countries_in_cycle.add(c_up)
                         return f"{t_name}-{c_up}", c_up, c_low
-                    break # Break inner loop, roll again
+                    break
         
-        # Fallback if loop finishes without finding unique
         t_name, _, pool = tiers[-1]
         c_up, c_low, _ = random.choice(pool)
         used_countries_in_cycle.add(c_up)
         return f"{t_name}-{c_up}", c_up, c_low
 
-    # When selection did not work / pool is empty (e.g. you typed 'AT' which is not in pool)
+    # If pool is empty (e.g. user set an unsupported code with no route change allowed)
     if not ROUTE_CHANGE_ON_UNAVAILABLE:
         if INC_COUNTRIES:
-            first_selected = sorted(list(INC_COUNTRIES))[0]
-            used_countries_in_cycle.add(first_selected)
-            return "LOCKED", first_selected, first_selected.lower()
+            locked = sorted(list(INC_COUNTRIES))[0]
+            used_countries_in_cycle.add(locked)
+            return f"LOCKED-{locked}", locked, locked.lower()
         return "UNSET", "", ""
 
     # Route change fallback
     fallback_pool = [(c, c.lower(), n) for c, n in ALL_DATACENTER_NON_PREMIUM if c not in EXC_COUNTRIES]
     if fallback_pool:
-        # Try to find a unique fallback
-        for _ in range(15):
-            c_up, c_low, _ = random.choice(fallback_pool)
-            if c_up not in used_countries_in_cycle or len(fallback_pool) <= len(used_countries_in_cycle):
-                used_countries_in_cycle.add(c_up)
-                return "ROUTE-CHG", c_up, c_low
-        
-        c_up, c_low, _ = fallback_pool[0]
+        c_up, c_low, _ = random.choice(fallback_pool)
         used_countries_in_cycle.add(c_up)
-        return "ROUTE-CHG", c_up, c_low
+        return f"FALLBACK-{c_up}", c_up, c_low
 
     return "DC", "US", "us"
 
@@ -1121,8 +1097,6 @@ def execute_bot(bot_id: int, total_bots: int, target_url: str, slug: str, ltype:
 
     expected_credits = calculate_credits(BROWSER_RENDERING, RESIDENTIAL)
     truncated_target = truncate_url(target_url, head_len=18, tail_len=14)
-
-    # ScraperAPI unique rotation seed to prevent IP reuse
     rotation_seed = random.randint(1000000, 9999999)
 
     params = {
@@ -1134,13 +1108,12 @@ def execute_bot(bot_id: int, total_bots: int, target_url: str, slug: str, ltype:
         "url": target_url
     }
     if code_upper:
-        params["country_code"] = code_upper
+        params["country_code"] = code_upper.lower()
     if RESIDENTIAL:
         params["premium"] = "true"
 
     url = f"http://api.scraperapi.com?{urllib.parse.urlencode(params)}"
     
-    # Accurate browser client hints to prevent platforms flagging desktop
     headers = {
         "User-Agent": selected_ua,
         "Connection": "close"
@@ -1163,11 +1136,28 @@ def execute_bot(bot_id: int, total_bots: int, target_url: str, slug: str, ltype:
     try:
         with urllib.request.urlopen(req, timeout=65) as resp:
             actual_credits = resp.headers.get("sa-credit-cost", str(expected_credits))
-            print(
-                f"[Bot-{bot_id}/{total_bots}] [{tier_label}] [{selected_cat.upper()}:{os_label}] "
-                f"[{ltype} {slug}] [Target: {truncated_target}] [Ref: {ref_display}] "
-                f"[Credits: ~{actual_credits} cost] [{key_obj.tag}] -> HTTP {resp.status} OK"
-            )
+            
+            # Inspect proxy exit headers to detect silent upstream routing to US/NL/FR
+            exit_country = (
+                resp.headers.get("sa-proxy-country") 
+                or resp.headers.get("sa-country") 
+                or resp.headers.get("x-scraperapi-country") 
+                or ""
+            ).strip().upper()
+
+            # Strictly verify exit country if an explicit country was chosen
+            if INC_COUNTRIES and code_upper and exit_country and exit_country != code_upper:
+                print(
+                    f"[Bot-{bot_id}/{total_bots}] [GEO REJECTED] [Requested: {code_upper} | ScraperAPI returned: {exit_country}] "
+                    f"Traffic ignored to protect your stats. [Credits: ~{actual_credits}] [{key_obj.tag}]"
+                )
+            else:
+                country_tag = exit_country if exit_country else code_upper
+                print(
+                    f"[Bot-{bot_id}/{total_bots}] [{tier_label}-{country_tag}] [{selected_cat.upper()}:{os_label}] "
+                    f"[{ltype} {slug}] [Target: {truncated_target}] [Ref: {ref_display}] "
+                    f"[Credits: ~{actual_credits} cost] [{key_obj.tag}] -> HTTP {resp.status} OK"
+                )
 
     except urllib.error.HTTPError as e:
         raw_detail = e.read().decode("utf-8", errors="ignore")[:70].strip()
@@ -1245,11 +1235,11 @@ def main():
 
             tasks = LINK_DISPATCHER.generate_cycle_batch(worker_count)
             
-            # UNIQUE UAs Per Cycle
+            # Unique User Agents per cycle
             used_uas_this_cycle = set()
             bot_ua_assignments = [resolve_cycle_ua(used_uas_this_cycle) for _ in range(worker_count)]
             
-            # UNIQUE COUNTRIES Per Cycle
+            # Unique Countries per cycle
             used_countries_this_cycle = set()
             bot_country_assignments = [pick_datacenter_country(used_countries_this_cycle) for _ in range(worker_count)]
 
