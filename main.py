@@ -593,7 +593,6 @@ def pick_browser_for_os(os_name: str, allowed_browsers: list, native_pct: float)
 
     native_name = NATIVE_BROWSER_MAP.get(os_name, "")
     
-    # If the native browser is in the user's allowed list
     if native_name and native_name in allowed_browsers:
         other_browsers = [b for b in allowed_browsers if b != native_name]
         if other_browsers and random.random() < native_pct:
@@ -602,7 +601,6 @@ def pick_browser_for_os(os_name: str, allowed_browsers: list, native_pct: float)
             return random.choice(other_browsers)
         return native_name
 
-    # If native not allowed or not specified, choose uniformly from configured
     return random.choice(allowed_browsers)
 
 
@@ -615,7 +613,6 @@ def get_ua_for_selection(category: str, os_name: str, browser: str) -> tuple:
     if category == "desktop" and CUSTOM_DESKTOP_UAS:
         return random.choice(CUSTOM_DESKTOP_UAS), "Custom:Desktop"
 
-    # Strict Mobile Routing
     if category == "mobile":
         if os_name == "android":
             if browser == "firefox":
@@ -641,7 +638,6 @@ def get_ua_for_selection(category: str, os_name: str, browser: str) -> tuple:
 
         return random.choice(ANDROID_FF_ALL), "Android:Firefox"
 
-    # Strict Desktop Routing
     if category == "desktop":
         if os_name == "windows":
             if browser == "firefox":
@@ -688,7 +684,6 @@ def resolve_cycle_ua(used_uas_in_cycle: set) -> tuple:
     chosen_os = random.choice(list(sub_os_dict.keys()))
     allowed_browsers = sub_os_dict.get(chosen_os, ["chrome"])
     
-    # Select browser according to 80% native vs other rule
     chosen_browser = pick_browser_for_os(chosen_os, allowed_browsers, NATIVE_RATIO)
 
     ua, label = "", ""
@@ -950,14 +945,29 @@ POST_WAIT_MIN, POST_WAIT_MAX = parse_range("POST_RESPONSE_WAIT_RANGE", 5.0, 15.0
 BROWSER_RENDERING = get_env("BROWSER_RENDERING", "true").lower()
 RESIDENTIAL = parse_bool("RESIDENTIAL", default=False)
 
-# UPDATED: "none" removed so that a valid Referer is always turned on by default
+# Referer Variable Toggle (default True)
+REFERER_ENABLED = parse_bool("REFERER_ENABLED", default=True)
+
+# Real Default Referrers (Facebook, Instagram, Twitter/X t.co, LinkedIn, Snapchat, Google, YouTube)
 DEFAULT_REFERRERS = [
+    "https://m.facebook.com/",
+    "https://www.instagram.com/",
+    "https://t.co",
+    "https://www.linkedin.com/",
+    "https://www.snapchat.com/",
     "https://www.google.com/",
-    "https://www.youtube.com/",
-    "https://t.co/"
+    "https://www.youtube.com/"
 ]
-RAW_REFERRERS = parse_list("REFERRERS", DEFAULT_REFERRERS)
-REFERRERS = RAW_REFERRERS if RAW_REFERRERS else DEFAULT_REFERRERS
+
+# Check if explicit user-defined referrers are passed via environment variables (REFERRERS or REFERER)
+RAW_REFERRERS = parse_list("REFERRERS", parse_list("REFERER", []))
+
+if RAW_REFERRERS:
+    IS_CUSTOM_REFERRER = True
+    REFERRERS = RAW_REFERRERS
+else:
+    IS_CUSTOM_REFERRER = False
+    REFERRERS = DEFAULT_REFERRERS
 
 INPUT_LINKS = parse_list("LINKS", parse_list("TARGET_URLS", parse_list("TARGET_SLUGS", [])))
 SHORT_TEMPLATE = get_env("SHORT_LINK_TEMPLATE")
@@ -986,7 +996,6 @@ def execute_bot(bot_id: int, total_bots: int, target_url: str, slug: str, ltype:
     expected_credits = calculate_credits(BROWSER_RENDERING, RESIDENTIAL)
     truncated_target = truncate_url(target_url, head_len=18, tail_len=14)
 
-    # ScraperAPI unique rotation seed to prevent IP reuse
     rotation_seed = random.randint(1000000, 9999999)
 
     params = {
@@ -1001,9 +1010,6 @@ def execute_bot(bot_id: int, total_bots: int, target_url: str, slug: str, ltype:
     if RESIDENTIAL:
         params["premium"] = "true"
 
-    url = f"http://api.scraperapi.com?{urllib.parse.urlencode(params)}"
-    
-    # Accurate browser client hints to prevent platforms flagging desktop
     headers = {
         "User-Agent": selected_ua,
         "Connection": "close"
@@ -1014,22 +1020,46 @@ def execute_bot(bot_id: int, total_bots: int, target_url: str, slug: str, ltype:
     else:
         headers["Sec-CH-UA-Mobile"] = "?0"
 
-    chosen_referrer = random.choice(REFERRERS)
-    if chosen_referrer and chosen_referrer.lower() not in ("none", "direct", "empty"):
-        headers["Referer"] = chosen_referrer
-        ref_display = chosen_referrer
-    else:
-        ref_display = "Direct"
+    # Determine Referer Header Logic & State
+    ref_status_str = "Disabled"
+    ref_display = "None (Direct)"
 
+    if REFERER_ENABLED:
+        if IS_CUSTOM_REFERRER and len(REFERRERS) == 1 and REFERRERS[0].lower() in ("none", "direct", "empty"):
+            ref_status_str = "Explicitly None (Direct)"
+            ref_display = "Direct"
+        else:
+            ref_status_str = "Custom" if IS_CUSTOM_REFERRER else "Default"
+            
+            # 2.5% chance (2-3% range) to pick None (Direct) for natural traffic patterns when using defaults
+            if not IS_CUSTOM_REFERRER and random.random() < 0.025:
+                ref_display = "Direct (None)"
+            else:
+                chosen_referrer = random.choice(REFERRERS)
+                if chosen_referrer and chosen_referrer.lower() not in ("none", "direct", "empty"):
+                    headers["Referer"] = chosen_referrer
+                    ref_display = chosen_referrer
+                else:
+                    ref_display = "Direct"
+    else:
+        ref_status_str = "Disabled"
+        ref_display = "None (Direct)"
+
+    url = f"http://api.scraperapi.com?{urllib.parse.urlencode(params)}"
     req = urllib.request.Request(url, headers=headers)
+
+    # Pinned log per request showing header states, referer status, etc.
+    print(
+        f"[Bot-{bot_id}/{total_bots}] [{tier}-{label}] [{selected_cat.upper()}:{os_label}] "
+        f"[{ltype} {slug}] [Target: {truncated_target}] "
+        f"[Referer Enabled: {REFERER_ENABLED}] [Ref Type: {ref_status_str}] [Ref: {ref_display}]"
+    )
 
     try:
         with urllib.request.urlopen(req, timeout=65) as resp:
             actual_credits = resp.headers.get("sa-credit-cost", str(expected_credits))
             print(
-                f"[Bot-{bot_id}/{total_bots}] [{tier}-{label}] [{selected_cat.upper()}:{os_label}] "
-                f"[{ltype} {slug}] [Target: {truncated_target}] [Ref: {ref_display}] "
-                f"[Credits: ~{actual_credits} cost] [{key_obj.tag}] -> HTTP {resp.status} OK"
+                f"   └─> [{key_obj.tag}] [Credits: ~{actual_credits} cost] -> HTTP {resp.status} OK"
             )
 
     except urllib.error.HTTPError as e:
@@ -1038,12 +1068,12 @@ def execute_bot(bot_id: int, total_bots: int, target_url: str, slug: str, ltype:
             reason_msg = f"HTTP {e.code} Credits Exhausted / Invalid Key ({raw_detail})"
             pool.mark_dead(key_obj, reason_msg)
         elif e.code == 429:
-            print(f"[Bot-{bot_id}] [{key_obj.tag}] [Target: {truncated_target}] [Credits: 0] [TRANSIENT] HTTP 429 Rate limit exceeded")
+            print(f"   └─> [Bot-{bot_id}] [{key_obj.tag}] [TRANSIENT] HTTP 429 Rate limit exceeded")
         else:
-            print(f"[Bot-{bot_id}] [{key_obj.tag}] [Target: {truncated_target}] [Credits: 0] [WARN] HTTP {e.code}: {raw_detail}")
+            print(f"   └─> [Bot-{bot_id}] [{key_obj.tag}] [WARN] HTTP {e.code}: {raw_detail}")
 
     except Exception as ex:
-        print(f"[Bot-{bot_id}] [{key_obj.tag}] [Target: {truncated_target}] [Credits: 0] [CLIENT ERROR]: {str(ex)}")
+        print(f"   └─> [Bot-{bot_id}] [{key_obj.tag}] [CLIENT ERROR]: {str(ex)}")
 
     post_wait = random.uniform(POST_WAIT_MIN, POST_WAIT_MAX)
     gap_wait = random.uniform(GAP_MIN, GAP_MAX)
@@ -1068,12 +1098,11 @@ def main():
     print(f"Total Active Keys       : {len(pool.active_keys)}")
     print(f"Browser Rendering       : {BROWSER_RENDERING}")
     print(f"Residential Proxies     : {'ENABLED (premium=true)' if RESIDENTIAL else 'DISABLED (Standard DataCenter)'}")
+    print(f"Referer Enabled (Switch): {REFERER_ENABLED}")
+    print(f"Referer Source Mode     : {'Custom Override' if IS_CUSTOM_REFERRER else 'Real Defaults (FB, IG, t.co, X, LinkedIn, Snapchat, Google, YouTube + ~2.5% Direct)'}")
     print(f"Est. Credits Per Hit    : ~{calculate_credits(BROWSER_RENDERING, RESIDENTIAL)} credits")
     print(f"Active Device Hierarchy : {DEVICE_TREE}")
     print(f"Native Browser Weight   : {int(NATIVE_RATIO * 100)}% Native / {int((1.0 - NATIVE_RATIO) * 100)}% Others")
-    print(f"Post-Response Cooldown  : {POST_WAIT_MIN:.1f}s - {POST_WAIT_MAX:.1f}s")
-    print(f"Worker Gap Interval     : {GAP_MIN:.1f}s - {GAP_MAX:.1f}s")
-    print(f"Cycle Interval Range    : {CYCLE_MIN:.1f}s - {CYCLE_MAX:.1f}s")
     print("==================================================\n")
 
     cycle_num = 1
@@ -1095,7 +1124,6 @@ def main():
 
             tasks = LINK_DISPATCHER.generate_cycle_batch(worker_count)
 
-            # Assign unique User-Agents for each worker in this cycle
             used_uas_this_cycle = set()
             bot_ua_assignments = [resolve_cycle_ua(used_uas_this_cycle) for _ in range(worker_count)]
 
