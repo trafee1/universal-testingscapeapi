@@ -752,7 +752,7 @@ DATACENTER_NAME_TO_CODE = {name.lower(): code.upper() for code, name in ALL_DATA
 
 TIER_1_CODES = {"US", "GB", "CA", "FR", "ES", "IT", "NL", "JP", "SG", "AU", "SE", "MX", "BR", "KR"}
 TIER_2_CODES = {"AE", "AR", "AT", "BE", "CH", "CL", "CO", "CZ", "DK", "FI", "HK", "IE", "IL", "IN", "NO", "NZ", "PL", "PT", "RO", "SA", "TR", "TW", "ZA"}
-TIER_3_CODES = {"BG", "GR", "HR", "HU", "ID", "MY", "PH", "RS", "SK", "TH", "UA", "VN","DE"}
+TIER_3_CODES = {"BG", "GR", "HR", "HU", "ID", "MY", "PH", "RS", "SK", "TH", "UA", "VN"}
 
 def print_datacenter_countries_table():
     print("+" + "-" * 76 + "+")
