@@ -945,8 +945,11 @@ POST_WAIT_MIN, POST_WAIT_MAX = parse_range("POST_RESPONSE_WAIT_RANGE", 5.0, 15.0
 BROWSER_RENDERING = get_env("BROWSER_RENDERING", "true").lower()
 RESIDENTIAL = parse_bool("RESIDENTIAL", default=False)
 
-# Referer Variable Toggle (default True)
-REFERER_ENABLED = parse_bool("REFERER_ENABLED", default=True)
+# ---------------------------------------------------------
+# Updated Variables: CUSTOM_HEADER & REFERER (Case-Insensitive, Default ON)
+# ---------------------------------------------------------
+CUSTOM_HEADER_ENABLED = parse_bool("CUSTOM_HEADER", default=True)
+REFERER_ENABLED = parse_bool("REFERER", default=True)
 
 # Real Default Referrers (Facebook, Instagram, Twitter/X t.co, LinkedIn, Snapchat, Google, YouTube)
 DEFAULT_REFERRERS = [
@@ -959,8 +962,8 @@ DEFAULT_REFERRERS = [
     "https://www.youtube.com/"
 ]
 
-# Check if explicit user-defined referrers are passed via environment variables (REFERRERS or REFERER)
-RAW_REFERRERS = parse_list("REFERRERS", parse_list("REFERER", []))
+# Check if explicit user-defined referrers are passed via environment variables (REFERRERS or REFERER_URLS)
+RAW_REFERRERS = parse_list("REFERRERS", parse_list("REFERER_URLS", []))
 
 if RAW_REFERRERS:
     IS_CUSTOM_REFERRER = True
@@ -1014,13 +1017,16 @@ def execute_bot(bot_id: int, total_bots: int, target_url: str, slug: str, ltype:
         "User-Agent": selected_ua,
         "Connection": "close"
     }
-    if selected_cat == "mobile":
-        headers["Sec-CH-UA-Mobile"] = "?1"
-        headers["Sec-CH-UA-Platform"] = '"Android"' if "Android" in selected_ua else '"iOS"'
-    else:
-        headers["Sec-CH-UA-Mobile"] = "?0"
+    
+    # Custom Header configuration governed by CUSTOM_HEADER variable
+    if CUSTOM_HEADER_ENABLED:
+        if selected_cat == "mobile":
+            headers["Sec-CH-UA-Mobile"] = "?1"
+            headers["Sec-CH-UA-Platform"] = '"Android"' if "Android" in selected_ua else '"iOS"'
+        else:
+            headers["Sec-CH-UA-Mobile"] = "?0"
 
-    # Determine Referer Header Logic & State
+    # Determine Referer Header Logic & State governed by REFERER variable
     ref_status_str = "Disabled"
     ref_display = "None (Direct)"
 
@@ -1031,7 +1037,7 @@ def execute_bot(bot_id: int, total_bots: int, target_url: str, slug: str, ltype:
         else:
             ref_status_str = "Custom" if IS_CUSTOM_REFERRER else "Default"
             
-            # 2.5% chance (2-3% range) to pick None (Direct) for natural traffic patterns when using defaults
+            # 2.5% chance to pick None (Direct) for natural traffic patterns when using defaults
             if not IS_CUSTOM_REFERRER and random.random() < 0.025:
                 ref_display = "Direct (None)"
             else:
@@ -1048,11 +1054,10 @@ def execute_bot(bot_id: int, total_bots: int, target_url: str, slug: str, ltype:
     url = f"http://api.scraperapi.com?{urllib.parse.urlencode(params)}"
     req = urllib.request.Request(url, headers=headers)
 
-    # Pinned log per request showing header states, referer status, etc.
     print(
         f"[Bot-{bot_id}/{total_bots}] [{tier}-{label}] [{selected_cat.upper()}:{os_label}] "
         f"[{ltype} {slug}] [Target: {truncated_target}] "
-        f"[Referer Enabled: {REFERER_ENABLED}] [Ref Type: {ref_status_str}] [Ref: {ref_display}]"
+        f"[Custom Header: {CUSTOM_HEADER_ENABLED}] [Referer Enabled: {REFERER_ENABLED}] [Ref Type: {ref_status_str}] [Ref: {ref_display}]"
     )
 
     try:
@@ -1098,7 +1103,8 @@ def main():
     print(f"Total Active Keys       : {len(pool.active_keys)}")
     print(f"Browser Rendering       : {BROWSER_RENDERING}")
     print(f"Residential Proxies     : {'ENABLED (premium=true)' if RESIDENTIAL else 'DISABLED (Standard DataCenter)'}")
-    print(f"Referer Enabled (Switch): {REFERER_ENABLED}")
+    print(f"Custom Header (Switch)  : {CUSTOM_HEADER_ENABLED}")
+    print(f"Referer (Switch)        : {REFERER_ENABLED}")
     print(f"Referer Source Mode     : {'Custom Override' if IS_CUSTOM_REFERRER else 'Real Defaults (FB, IG, t.co, X, LinkedIn, Snapchat, Google, YouTube + ~2.5% Direct)'}")
     print(f"Est. Credits Per Hit    : ~{calculate_credits(BROWSER_RENDERING, RESIDENTIAL)} credits")
     print(f"Active Device Hierarchy : {DEVICE_TREE}")
