@@ -1055,6 +1055,9 @@ class KeyPoolManager:
 RAW_KEYS = get_env("API_KEYS", get_env("SCRAPERAPI_KEYS", ""))
 pool = KeyPoolManager(RAW_KEYS)
 
+PARALLELBOT = parse_bool("PARALLELBOT", default=True)
+CYCLE_GAP = parse_num("CYCLE_GAP", default=0.0)
+
 MATCH_IP_LANGUAGE = parse_bool("LANGUAGE_ACCORDING_TO_IP", default=False)
 WORKER_MIN, WORKER_MAX = parse_range("WORKER_COUNT_RANGE", 5, 7)
 GAP_MIN, GAP_MAX = parse_range("WORKER_GAP_RANGE", 8.0, 12.0)
@@ -1227,6 +1230,7 @@ def main():
     print("--------------------------------------------------")
 
     print(f"Total Active Keys       : {len(pool.active_keys)}")
+    print(f"Parallel Bots Enabled   : {PARALLELBOT}")
     print(f"Browser Rendering       : {BROWSER_RENDERING}")
     print(f"Residential Proxies     : {'ENABLED (premium=true)' if RESIDENTIAL else 'DISABLED (Standard DataCenter Free Credit)'}")
     print(f"Est. Credits Per Hit    : ~{calculate_credits(BROWSER_RENDERING, RESIDENTIAL)} credits")
@@ -1235,6 +1239,7 @@ def main():
     print(f"Post-Response Cooldown  : {POST_WAIT_MIN:.1f}s - {POST_WAIT_MAX:.1f}s")
     print(f"Worker Gap Interval     : {GAP_MIN:.1f}s - {GAP_MAX:.1f}s")
     print(f"Cycle Interval Range    : {CYCLE_MIN:.1f}s - {CYCLE_MAX:.1f}s")
+    print(f"Cycle Gap Duration      : {CYCLE_GAP}s")
     print(f"Dynamic IP Language     : {MATCH_IP_LANGUAGE}")
     print("==================================================\n")
 
@@ -1265,21 +1270,31 @@ def main():
             used_countries_this_cycle = set()
             bot_country_assignments = [pick_datacenter_country(used_countries_this_cycle) for _ in range(worker_count)]
 
-            with concurrent.futures.ThreadPoolExecutor(max_workers=worker_count) as executor:
-                futures = []
+            if PARALLELBOT:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=worker_count) as executor:
+                    futures = []
+                    for idx, (url, slug, ltype) in enumerate(tasks):
+                        stagger = idx * random.uniform(GAP_MIN, GAP_MAX)
+                        
+                        cat, ua_str, ua_label = bot_ua_assignments[idx]
+                        tier_label, code_upper, code_lower = bot_country_assignments[idx]
+                        
+                        futures.append(
+                            executor.submit(
+                                execute_bot, idx + 1, worker_count, url, slug, ltype, stagger, 
+                                cat, ua_str, ua_label, tier_label, code_upper, code_lower
+                            )
+                        )
+                    concurrent.futures.wait(futures)
+            else:
                 for idx, (url, slug, ltype) in enumerate(tasks):
                     stagger = idx * random.uniform(GAP_MIN, GAP_MAX)
                     
                     cat, ua_str, ua_label = bot_ua_assignments[idx]
                     tier_label, code_upper, code_lower = bot_country_assignments[idx]
                     
-                    futures.append(
-                        executor.submit(
-                            execute_bot, idx + 1, worker_count, url, slug, ltype, stagger, 
-                            cat, ua_str, ua_label, tier_label, code_upper, code_lower
-                        )
-                    )
-                concurrent.futures.wait(futures)
+                    execute_bot(idx + 1, worker_count, url, slug, ltype, stagger, 
+                                cat, ua_str, ua_label, tier_label, code_upper, code_lower)
 
             elapsed = time.time() - cycle_start
             wait_time = target_cycle_time - elapsed
@@ -1291,6 +1306,10 @@ def main():
                 time.sleep(wait_time)
             elif pool.active_keys:
                 print(f"--- [Cycle #{cycle_num} Complete] Elapsed: {elapsed:.1f}s | Starting next round immediately ---")
+
+            if CYCLE_GAP > 0 and pool.active_keys:
+                print(f"--- Applying explicit Cycle Gap of {CYCLE_GAP}s ---")
+                time.sleep(CYCLE_GAP)
 
             cycle_num += 1
 
