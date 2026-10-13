@@ -61,7 +61,6 @@ def truncate_url(url: str, head_len: int = 18, tail_len: int = 14) -> str:
         return url
     return f"{url[:head_len]}...{url[-tail_len:]}"
 
-# Ratio: e.g. 80 means 80% native, 20% others
 def parse_native_ratio(var_name: str, default_pct: float = 80.0) -> float:
     raw = get_env(var_name)
     if not raw:
@@ -76,6 +75,33 @@ def parse_native_ratio(var_name: str, default_pct: float = 80.0) -> float:
         return min(1.0, max(0.0, val))
     except Exception:
         return default_pct / 100.0
+
+
+# ---------------------------------------------------------
+# Dynamic Tier Ratio Parser
+# ---------------------------------------------------------
+def parse_tier_ratio(var_name="TIER_RATIO", default=(70.0, 25.0, 5.0)):
+    raw = get_env(var_name)
+    if not raw:
+        return default
+    parts = [p.strip() for p in raw.split(",") if p.strip()]
+    try:
+        if len(parts) == 1:
+            t1 = float(parts[0])
+            rem = max(0.0, 100.0 - t1)
+            # T2 is twice the size of T3 (2 parts vs 1 part out of 3)
+            t2 = rem * (2.0 / 3.0)
+            t3 = rem * (1.0 / 3.0)
+            return (t1, t2, t3)
+        elif len(parts) >= 3:
+            return (float(parts[0]), float(parts[1]), float(parts[2]))
+        elif len(parts) == 2:
+            return (float(parts[0]), float(parts[1]), max(0.0, 100.0 - float(parts[0]) - float(parts[1])))
+    except ValueError:
+        pass
+    return default
+
+T1_RATIO, T2_RATIO, T3_RATIO = parse_tier_ratio("TIER_RATIO", (70.0, 25.0, 5.0))
 
 
 # =========================================================
@@ -593,7 +619,6 @@ def pick_browser_for_os(os_name: str, allowed_browsers: list, native_pct: float)
 
     native_name = NATIVE_BROWSER_MAP.get(os_name, "")
     
-    # If the native browser is in the user's allowed list
     if native_name and native_name in allowed_browsers:
         other_browsers = [b for b in allowed_browsers if b != native_name]
         if other_browsers and random.random() < native_pct:
@@ -602,7 +627,6 @@ def pick_browser_for_os(os_name: str, allowed_browsers: list, native_pct: float)
             return random.choice(other_browsers)
         return native_name
 
-    # If native not allowed or not specified, choose uniformly from configured
     return random.choice(allowed_browsers)
 
 
@@ -688,7 +712,6 @@ def resolve_cycle_ua(used_uas_in_cycle: set) -> tuple:
     chosen_os = random.choice(list(sub_os_dict.keys()))
     allowed_browsers = sub_os_dict.get(chosen_os, ["chrome"])
     
-    # Select browser according to native vs other rule
     chosen_browser = pick_browser_for_os(chosen_os, allowed_browsers, NATIVE_RATIO)
 
     ua, label = "", ""
@@ -702,73 +725,36 @@ def resolve_cycle_ua(used_uas_in_cycle: set) -> tuple:
 
 
 # ---------------------------------------------------------
-# Full Non-Premium Datacenter Catalog & Country Resolver
+# Full Non-Premium Datacenter Catalog & 3-Tier Classification
 # ---------------------------------------------------------
-# Full Datacenter non-premium countries working on standard credit
 ALL_DATACENTER_NON_PREMIUM = [
-    ("AE", "United Arab Emirates"),
-    ("AR", "Argentina"),
-    ("AT", "Austria"),
-    ("AU", "Australia"),
-    ("BE", "Belgium"),
-    ("BG", "Bulgaria"),
-    ("BR", "Brazil"),
-    ("CA", "Canada"),
-    ("CH", "Switzerland"),
-    ("CL", "Chile"),
-    ("CO", "Colombia"),
-    ("CZ", "Czech Republic"),
-    ("DE", "Germany"),
-    ("DK", "Denmark"),
-    ("ES", "Spain"),
-    ("FI", "Finland"),
-    ("FR", "France"),
-    ("GB", "United Kingdom"),
-    ("GR", "Greece"),
-    ("HK", "Hong Kong"),
-    ("HR", "Croatia"),
-    ("HU", "Hungary"),
-    ("ID", "Indonesia"),
-    ("IE", "Ireland"),
-    ("IL", "Israel"),
-    ("IN", "India"),
-    ("IT", "Italy"),
-    ("JP", "Japan"),
-    ("KR", "South Korea"),
-    ("MX", "Mexico"),
-    ("MY", "Malaysia"),
-    ("NL", "Netherlands"),
-    ("NO", "Norway"),
-    ("NZ", "New Zealand"),
-    ("PH", "Philippines"),
-    ("PL", "Poland"),
-    ("PT", "Portugal"),
-    ("RO", "Romania"),
-    ("RS", "Serbia"),
-    ("SA", "Saudi Arabia"),
-    ("SE", "Sweden"),
-    ("SG", "Singapore"),
-    ("SK", "Slovakia"),
-    ("TH", "Thailand"),
-    ("TR", "Turkey"),
-    ("TW", "Taiwan"),
-    ("UA", "Ukraine"),
-    ("US", "United States"),
-    ("VN", "Vietnam"),
-    ("ZA", "South Africa")
+    ("AE", "United Arab Emirates"), ("AR", "Argentina"), ("AT", "Austria"),
+    ("AU", "Australia"), ("BE", "Belgium"), ("BG", "Bulgaria"),
+    ("BR", "Brazil"), ("CA", "Canada"), ("CH", "Switzerland"),
+    ("CL", "Chile"), ("CO", "Colombia"), ("CZ", "Czech Republic"),
+    ("DE", "Germany"), ("DK", "Denmark"), ("ES", "Spain"),
+    ("FI", "Finland"), ("FR", "France"), ("GB", "United Kingdom"),
+    ("GR", "Greece"), ("HK", "Hong Kong"), ("HR", "Croatia"),
+    ("HU", "Hungary"), ("ID", "Indonesia"), ("IE", "Ireland"),
+    ("IL", "Israel"), ("IN", "India"), ("IT", "Italy"),
+    ("JP", "Japan"), ("KR", "South Korea"), ("MX", "Mexico"),
+    ("MY", "Malaysia"), ("NL", "Netherlands"), ("NO", "Norway"),
+    ("NZ", "New Zealand"), ("PH", "Philippines"), ("PL", "Poland"),
+    ("PT", "Portugal"), ("RO", "Romania"), ("RS", "Serbia"),
+    ("SA", "Saudi Arabia"), ("SE", "Sweden"), ("SG", "Singapore"),
+    ("SK", "Slovakia"), ("TH", "Thailand"), ("TR", "Turkey"),
+    ("TW", "Taiwan"), ("UA", "Ukraine"), ("US", "United States"),
+    ("VN", "Vietnam"), ("ZA", "South Africa")
 ]
-
-# Sort alphabetically by country full name
 ALL_DATACENTER_NON_PREMIUM = sorted(ALL_DATACENTER_NON_PREMIUM, key=lambda x: x[1])
 
 DATACENTER_CODE_TO_NAME = {code.upper(): name for code, name in ALL_DATACENTER_NON_PREMIUM}
 DATACENTER_NAME_TO_CODE = {name.lower(): code.upper() for code, name in ALL_DATACENTER_NON_PREMIUM}
 
-# T1 set for route change fallback check
-T1_CODES = {
-    , "ES", "IT", "PL", "SE", "BR",
-    "KR", "TR", "VN", "ID", "CA", "JP", "SG"
-}
+# Explicit Tier Definitions based on standard Datacenter non-premium pool
+TIER_1_CODES = {"US", "GB", "CA", "DE", "FR", "ES", "IT", "NL", "JP", "SG", "AU", "SE", "MX", "BR", "KR"}
+TIER_2_CODES = {"AE", "AR", "AT", "BE", "CH", "CL", "CO", "CZ", "DK", "FI", "HK", "IE", "IL", "IN", "NO", "NZ", "PL", "PT", "RO", "SA", "TR", "TW", "ZA"}
+TIER_3_CODES = {"BG", "GR", "HR", "HU", "ID", "MY", "PH", "RS", "SK", "TH", "UA", "VN"}
 
 def print_datacenter_countries_table():
     print("+" + "-" * 76 + "+")
@@ -792,6 +778,7 @@ def print_datacenter_countries_table():
 def parse_country_config(raw_cfg: str):
     inc = set()
     exc = set()
+    warnings = set()
     if not raw_cfg.strip():
         return inc, exc
 
@@ -802,32 +789,30 @@ def parse_country_config(raw_cfg: str):
             mode = match.group(1).lower()
             items = [c.strip().lower() for c in match.group(2).split(",") if c.strip()]
             for item in items:
-                resolved_code = None
+                resolved_code = item.upper()
                 if item.upper() in DATACENTER_CODE_TO_NAME:
                     resolved_code = item.upper()
                 elif item in DATACENTER_NAME_TO_CODE:
                     resolved_code = DATACENTER_NAME_TO_CODE[item]
                 else:
-                    resolved_code = item.upper()
+                    warnings.add(resolved_code)
 
-                if resolved_code:
-                    if mode == "include":
-                        inc.add(resolved_code)
-                    else:
-                        exc.add(resolved_code)
+                if mode == "include":
+                    inc.add(resolved_code)
+                else:
+                    exc.add(resolved_code)
         else:
             items = [c.strip().lower() for c in token.split(",") if c.strip()]
             for item in items:
-                resolved_code = None
+                resolved_code = item.upper()
                 if item.upper() in DATACENTER_CODE_TO_NAME:
                     resolved_code = item.upper()
                 elif item in DATACENTER_NAME_TO_CODE:
                     resolved_code = DATACENTER_NAME_TO_CODE[item]
                 else:
-                    resolved_code = item.upper()
-
-                if resolved_code:
-                    inc.add(resolved_code)
+                    warnings.add(resolved_code)
+                
+                inc.add(resolved_code)
 
     contradictions = inc.intersection(exc)
     if contradictions:
@@ -838,49 +823,69 @@ def parse_country_config(raw_cfg: str):
         print("=" * 70 + "\n")
         exc.difference_update(contradictions)
 
+    if warnings:
+        print("\n" + "!" * 70)
+        print(" [WARNING] DATACENTER COUNTRY NOT FOUND IN STANDARD POOL")
+        print(f" The following codes are not listed as standard non-premium datacenter: {', '.join(sorted(list(warnings)))}")
+        print(" They will still be requested, but ScraperAPI may silently route to US or fail.")
+        print("!" * 70 + "\n")
+
     return inc, exc
 
 RAW_COUNTRY_CONF = get_env("COUNTRY", get_env("COUNTRIES", ""))
 INC_COUNTRIES, EXC_COUNTRIES = parse_country_config(RAW_COUNTRY_CONF)
-
-# Route fallback change setting: default False
 ROUTE_CHANGE_ON_UNAVAILABLE = parse_bool("ROUTE_CHANGE_ON_UNAVAILABLE", parse_bool("COUNTRIES_ROUTE_CHANGE", False))
 
 def build_datacenter_country_pools():
-    valid_pool = []
+    t1_pool, t2_pool, t3_pool = [], [], []
     for code, name in ALL_DATACENTER_NON_PREMIUM:
         if code in EXC_COUNTRIES:
             continue
         if INC_COUNTRIES and code not in INC_COUNTRIES:
             continue
-        valid_pool.append((code, code.lower(), name))
-    return valid_pool
+        
+        entry = (code, code.lower(), name)
+        if code in TIER_1_CODES:
+            t1_pool.append(entry)
+        elif code in TIER_2_CODES:
+            t2_pool.append(entry)
+        else:
+            t3_pool.append(entry)
+    
+    return t1_pool, t2_pool, t3_pool
 
-VALID_COUNTRY_POOL = build_datacenter_country_pools()
+VALID_T1, VALID_T2, VALID_T3 = build_datacenter_country_pools()
+TOTAL_VALID = len(VALID_T1) + len(VALID_T2) + len(VALID_T3)
 
 def pick_datacenter_country():
-    if VALID_COUNTRY_POOL:
-        code_upper, code_lower, name = random.choice(VALID_COUNTRY_POOL)
-        return "DC", code_upper, code_lower
+    tiers = []
+    if VALID_T1: tiers.append(("T1", T1_RATIO, VALID_T1))
+    if VALID_T2: tiers.append(("T2", T2_RATIO, VALID_T2))
+    if VALID_T3: tiers.append(("T3", T3_RATIO, VALID_T3))
+
+    if tiers:
+        total_weight = sum(w for t, w, pool in tiers)
+        roll = random.uniform(0, total_weight)
+        current = 0
+        for t_name, w, pool in tiers:
+            current += w
+            if roll <= current:
+                c_up, c_low, _ = random.choice(pool)
+                return f"{t_name}-{c_up}", c_up, c_low
+        
+        # Fallback for rounding margins
+        t_name, _, pool = tiers[-1]
+        c_up, c_low, _ = random.choice(pool)
+        return f"{t_name}-{c_up}", c_up, c_low
 
     # When selection did not work / pool is empty
     if not ROUTE_CHANGE_ON_UNAVAILABLE:
-        # Strict policy: do not route to other countries until explicit change is true
         if INC_COUNTRIES:
             first_selected = sorted(list(INC_COUNTRIES))[0]
-            return "DC-LOCKED", first_selected, first_selected.lower()
-        return "DC-UNSET", "", ""
+            return "LOCKED", first_selected, first_selected.lower()
+        return "UNSET", "", ""
 
-    # Route change is explicitly True: fallback to non-T1 datacenter countries
-    non_t1_candidates = [
-        (c, c.lower(), n) for c, n in ALL_DATACENTER_NON_PREMIUM
-        if c not in T1_CODES and c not in EXC_COUNTRIES
-    ]
-    if non_t1_candidates:
-        c_up, c_low, _ = random.choice(non_t1_candidates)
-        return "ROUTE-CHG", c_up, c_low
-
-    # Final safe datacenter fallback
+    # Route change fallback
     fallback_pool = [(c, c.lower(), n) for c, n in ALL_DATACENTER_NON_PREMIUM if c not in EXC_COUNTRIES]
     if fallback_pool:
         c_up, c_low, _ = random.choice(fallback_pool)
@@ -1088,7 +1093,7 @@ def execute_bot(bot_id: int, total_bots: int, target_url: str, slug: str, ltype:
     if not key_obj:
         return
 
-    tier, label, code = pick_datacenter_country()
+    tier_label, code_upper, code_lower = pick_datacenter_country()
     expected_credits = calculate_credits(BROWSER_RENDERING, RESIDENTIAL)
     truncated_target = truncate_url(target_url, head_len=18, tail_len=14)
 
@@ -1103,8 +1108,8 @@ def execute_bot(bot_id: int, total_bots: int, target_url: str, slug: str, ltype:
         "session_number": str(rotation_seed),
         "url": target_url
     }
-    if code:
-        params["country_code"] = code
+    if code_upper:
+        params["country_code"] = code_upper
     if RESIDENTIAL:
         params["premium"] = "true"
 
@@ -1134,7 +1139,7 @@ def execute_bot(bot_id: int, total_bots: int, target_url: str, slug: str, ltype:
         with urllib.request.urlopen(req, timeout=65) as resp:
             actual_credits = resp.headers.get("sa-credit-cost", str(expected_credits))
             print(
-                f"[Bot-{bot_id}/{total_bots}] [{tier}-{label}] [{selected_cat.upper()}:{os_label}] "
+                f"[Bot-{bot_id}/{total_bots}] [{tier_label}] [{selected_cat.upper()}:{os_label}] "
                 f"[{ltype} {slug}] [Target: {truncated_target}] [Ref: {ref_display}] "
                 f"[Credits: ~{actual_credits} cost] [{key_obj.tag}] -> HTTP {resp.status} OK"
             )
@@ -1165,7 +1170,6 @@ def main():
     print("      UNIVERSAL SCRAPER ENGINE RUNTIME            ")
     print("==================================================")
 
-    # 2-column available non-premium datacenter country list
     print_datacenter_countries_table()
 
     if not INPUT_LINKS:
@@ -1175,15 +1179,14 @@ def main():
         print("!" * 70 + "\n")
         sys.exit(1)
 
-    # Country Audit Summary Log for Railway Dashboard
     inc_display = ", ".join(sorted(list(INC_COUNTRIES))) if INC_COUNTRIES else "None (ALL allowed)"
     exc_display = ", ".join(sorted(list(EXC_COUNTRIES))) if EXC_COUNTRIES else "None"
-    active_pool_display = f"{len(VALID_COUNTRY_POOL)} country code(s) active"
-
+    
     print("---------------- COUNTRY CONFIGURATION -----------")
     print(f"Included Countries      : {inc_display}")
     print(f"Excluded Countries      : {exc_display}")
-    print(f"Working Datacenter Pool : {active_pool_display}")
+    print(f"Working Datacenter Pool : {TOTAL_VALID} active (T1: {len(VALID_T1)} | T2: {len(VALID_T2)} | T3: {len(VALID_T3)})")
+    print(f"Tier Selection Ratios   : T1={T1_RATIO:.1f}% | T2={T2_RATIO:.1f}% | T3={T3_RATIO:.1f}%")
     print(f"Route Change Fallback   : {ROUTE_CHANGE_ON_UNAVAILABLE} (Default: False)")
     print("--------------------------------------------------")
 
@@ -1216,8 +1219,6 @@ def main():
             print(f"\n--- [Cycle #{cycle_num}] Starting {worker_count} bots | Target: {target_cycle_time:.1f}s | Active Keys: {len(pool.active_keys)} ---")
 
             tasks = LINK_DISPATCHER.generate_cycle_batch(worker_count)
-
-            # Assign unique User-Agents for each worker in this cycle
             used_uas_this_cycle = set()
             bot_ua_assignments = [resolve_cycle_ua(used_uas_this_cycle) for _ in range(worker_count)]
 
