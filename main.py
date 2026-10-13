@@ -750,9 +750,9 @@ ALL_DATACENTER_NON_PREMIUM = sorted(ALL_DATACENTER_NON_PREMIUM, key=lambda x: x[
 DATACENTER_CODE_TO_NAME = {code.upper(): name for code, name in ALL_DATACENTER_NON_PREMIUM}
 DATACENTER_NAME_TO_CODE = {name.lower(): code.upper() for code, name in ALL_DATACENTER_NON_PREMIUM}
 
-TIER_1_CODES = {"US", "GB", "CA", "DE", "FR", "ES", "IT", "NL", "JP", "SG", "AU", "SE", "MX", "BR", "KR"}
+TIER_1_CODES = {"US", "GB", "CA", "FR", "ES", "IT", "NL", "JP", "SG", "AU", "SE", "MX", "BR", "KR"}
 TIER_2_CODES = {"AE", "AR", "AT", "BE", "CH", "CL", "CO", "CZ", "DK", "FI", "HK", "IE", "IL", "IN", "NO", "NZ", "PL", "PT", "RO", "SA", "TR", "TW", "ZA"}
-TIER_3_CODES = {"BG", "GR", "HR", "HU", "ID", "MY", "PH", "RS", "SK", "TH", "UA", "VN"}
+TIER_3_CODES = {"BG", "GR", "HR", "HU", "ID", "MY", "PH", "RS", "SK", "TH", "UA", "VN","DE"}
 
 def print_datacenter_countries_table():
     print("+" + "-" * 76 + "+")
