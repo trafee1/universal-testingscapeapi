@@ -750,7 +750,7 @@ ALL_DATACENTER_NON_PREMIUM = sorted(ALL_DATACENTER_NON_PREMIUM, key=lambda x: x[
 DATACENTER_CODE_TO_NAME = {code.upper(): name for code, name in ALL_DATACENTER_NON_PREMIUM}
 DATACENTER_NAME_TO_CODE = {name.lower(): code.upper() for code, name in ALL_DATACENTER_NON_PREMIUM}
 
-TIER_1_CODES = {"US", "GB", "CA", "FR", "ES", "IT", "NL", "JP", "SG", "AU", "SE", "MX", "BR", "KR"}
+TIER_1_CODES = {"US", "GB", "CA", "DE", "FR", "ES", "IT", "NL", "JP", "SG", "AU", "SE", "MX", "BR", "KR"}
 TIER_2_CODES = {"AE", "AR", "AT", "BE", "CH", "CL", "CO", "CZ", "DK", "FI", "HK", "IE", "IL", "IN", "NO", "NZ", "PL", "PT", "RO", "SA", "TR", "TW", "ZA"}
 TIER_3_CODES = {"BG", "GR", "HR", "HU", "ID", "MY", "PH", "RS", "SK", "TH", "UA", "VN"}
 
@@ -1066,8 +1066,14 @@ RESIDENTIAL = parse_bool("RESIDENTIAL", default=False)
 DEFAULT_REFERRERS = [
     "none",
     "https://www.google.com/",
-    "https://www.youtube.com/",
-    "https://t.co/"
+    "https://t.co/",
+    "https://www.facebook.com",
+    "https://www.instagram.com",
+    "https://www.linkedin.com",
+    "https://www.pinterest.com",
+    "https://www.reddit.com",
+    "https://www.youtube.com",
+    "https://www.tiktok.com"
 ]
 RAW_REFERRERS = parse_list("REFERRERS", DEFAULT_REFERRERS)
 REFERRERS = RAW_REFERRERS if RAW_REFERRERS else DEFAULT_REFERRERS
@@ -1105,6 +1111,7 @@ def execute_bot(bot_id: int, total_bots: int, target_url: str, slug: str, ltype:
         "render": BROWSER_RENDERING,
         "keep_headers": "true",
         "session_number": str(rotation_seed),
+        "retry": "false",
         "url": target_url
     }
     if code_upper:
@@ -1116,7 +1123,10 @@ def execute_bot(bot_id: int, total_bots: int, target_url: str, slug: str, ltype:
     
     headers = {
         "User-Agent": selected_ua,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
         "Connection": "close"
+        
     }
     if selected_cat == "mobile":
         headers["Sec-CH-UA-Mobile"] = "?1"
