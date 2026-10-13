@@ -1,3 +1,4 @@
+name=main.py
 import concurrent.futures
 from datetime import datetime
 import os
@@ -593,7 +594,6 @@ def pick_browser_for_os(os_name: str, allowed_browsers: list, native_pct: float)
 
     native_name = NATIVE_BROWSER_MAP.get(os_name, "")
     
-    # If the native browser is in the user's allowed list
     if native_name and native_name in allowed_browsers:
         other_browsers = [b for b in allowed_browsers if b != native_name]
         if other_browsers and random.random() < native_pct:
@@ -602,7 +602,6 @@ def pick_browser_for_os(os_name: str, allowed_browsers: list, native_pct: float)
             return random.choice(other_browsers)
         return native_name
 
-    # If native not allowed or not specified, choose uniformly from configured
     return random.choice(allowed_browsers)
 
 
@@ -615,7 +614,6 @@ def get_ua_for_selection(category: str, os_name: str, browser: str) -> tuple:
     if category == "desktop" and CUSTOM_DESKTOP_UAS:
         return random.choice(CUSTOM_DESKTOP_UAS), "Custom:Desktop"
 
-    # Strict Mobile Routing
     if category == "mobile":
         if os_name == "android":
             if browser == "firefox":
@@ -641,7 +639,6 @@ def get_ua_for_selection(category: str, os_name: str, browser: str) -> tuple:
 
         return random.choice(ANDROID_FF_ALL), "Android:Firefox"
 
-    # Strict Desktop Routing
     if category == "desktop":
         if os_name == "windows":
             if browser == "firefox":
@@ -688,7 +685,6 @@ def resolve_cycle_ua(used_uas_in_cycle: set) -> tuple:
     chosen_os = random.choice(list(sub_os_dict.keys()))
     allowed_browsers = sub_os_dict.get(chosen_os, ["chrome"])
     
-    # Select browser according to 80% native vs other rule
     chosen_browser = pick_browser_for_os(chosen_os, allowed_browsers, NATIVE_RATIO)
 
     ua, label = "", ""
@@ -702,22 +698,17 @@ def resolve_cycle_ua(used_uas_in_cycle: set) -> tuple:
 
 
 # ---------------------------------------------------------
-# Country Include/Exclude Parser
+# Country Include/Exclude Parser & Datacenter Pool
 # ---------------------------------------------------------
-TIER_TABLE = {
-    "T1": [
-        ("FR", "fr"), ("DE", "de"), ("NL", "nl"), ("ES", "es"),
-        ("IT", "it"), ("PL", "pl"), ("SE", "se"), ("BR", "br"),
-        ("KR", "kr"), ("TR", "tr"), ("VN", "vn"), ("ID", "id"),
-        ("CA", "ca"), ("JP", "jp"), ("SG", "sg")
-    ],
-    "T2": [
-        ("US", "us"), ("GB", "gb"), ("CZ", "cz"), ("RO", "ro"),
-        ("AE", "ae"), ("MX", "mx"), ("TH", "th"), ("PH", "ph")
-    ],
-    "T3": [
-        ("IN", "in"), ("SA", "sa"), ("HK", "hk"), ("TW", "tw")
-    ]
+ALL_DATACENTER_COUNTRIES = {
+    "FR": "France", "DE": "Germany", "NL": "Netherlands", "ES": "Spain",
+    "IT": "Italy", "PL": "Poland", "SE": "Sweden", "BR": "Brazil",
+    "KR": "South Korea", "TR": "Turkey", "VN": "Vietnam", "ID": "Indonesia",
+    "CA": "Canada", "JP": "Japan", "SG": "Singapore",
+    "US": "United States", "GB": "United Kingdom", "CZ": "Czech Republic",
+    "RO": "Romania", "AE": "United Arab Emirates", "MX": "Mexico",
+    "TH": "Thailand", "PH": "Philippines",
+    "IN": "India", "SA": "Saudi Arabia", "HK": "Hong Kong", "TW": "Taiwan"
 }
 
 def parse_country_config(raw_cfg: str):
@@ -731,13 +722,13 @@ def parse_country_config(raw_cfg: str):
         match = re.match(r"^(include|exclude)\{([^\}]+)\}$", token, re.IGNORECASE)
         if match:
             mode = match.group(1).lower()
-            codes = [c.strip().lower() for c in match.group(2).split(",") if c.strip()]
+            codes = [c.strip().upper() for c in match.group(2).split(",") if c.strip()]
             if mode == "include":
                 inc.update(codes)
             else:
                 exc.update(codes)
         else:
-            codes = [c.strip().lower() for c in token.split(",") if c.strip()]
+            codes = [c.strip().upper() for c in token.split(",") if c.strip()]
             inc.update(codes)
 
     contradictions = inc.intersection(exc)
@@ -753,34 +744,31 @@ def parse_country_config(raw_cfg: str):
 
 RAW_COUNTRY_CONF = get_env("COUNTRY", get_env("COUNTRIES", ""))
 INC_COUNTRIES, EXC_COUNTRIES = parse_country_config(RAW_COUNTRY_CONF)
+EXPLICIT_ROUTE_CHANGE = parse_bool("EXPLICIT_COUNTRIES_ROUTE_CHANGE", default=False)
 
-def build_filtered_country_pools():
-    filtered = {"T1": [], "T2": [], "T3": []}
-    for tier, pairs in TIER_TABLE.items():
-        for code_upper, code_lower in pairs:
-            if EXC_COUNTRIES and (code_lower in EXC_COUNTRIES or code_upper.lower() in EXC_COUNTRIES):
-                continue
-            if INC_COUNTRIES and (code_lower not in INC_COUNTRIES and code_upper.lower() not in INC_COUNTRIES):
-                continue
-            filtered[tier].append((code_upper, code_lower))
-    return filtered
+def build_effective_countries():
+    effective = {}
+    for code_upper, full_name in ALL_DATACENTER_COUNTRIES.items():
+        if EXC_COUNTRIES and code_upper in EXC_COUNTRIES:
+            continue
+        if INC_COUNTRIES and code_upper not in INC_COUNTRIES:
+            continue
+        effective[code_upper] = full_name
+    return effective
 
-FILTERED_COUNTRIES = build_filtered_country_pools()
+EFFECTIVE_COUNTRIES = build_effective_countries()
 
 def pick_country():
-    available_tiers = [t for t in ("T1", "T2", "T3") if FILTERED_COUNTRIES[t]]
-    if not available_tiers:
-        return "T2", "US", "us"
+    if not EFFECTIVE_COUNTRIES:
+        if EXPLICIT_ROUTE_CHANGE:
+            candidates = list(ALL_DATACENTER_COUNTRIES.items())
+        else:
+            candidates = [("US", "United States")]
+    else:
+        candidates = list(EFFECTIVE_COUNTRIES.items())
 
-    roll = random.random()
-    if roll < 0.50 and FILTERED_COUNTRIES.get("T1"):
-        return "T1", *random.choice(FILTERED_COUNTRIES["T1"])
-    elif roll < 0.85 and FILTERED_COUNTRIES.get("T2"):
-        return "T2", *random.choice(FILTERED_COUNTRIES["T2"])
-    elif FILTERED_COUNTRIES.get("T3"):
-        return "T3", *random.choice(FILTERED_COUNTRIES["T3"])
-    t = random.choice(available_tiers)
-    return t, *random.choice(FILTERED_COUNTRIES[t])
+    code_upper, full_name = random.choice(candidates)
+    return "DC", code_upper, code_upper.lower()
 
 
 # ---------------------------------------------------------
@@ -986,7 +974,6 @@ def execute_bot(bot_id: int, total_bots: int, target_url: str, slug: str, ltype:
     expected_credits = calculate_credits(BROWSER_RENDERING, RESIDENTIAL)
     truncated_target = truncate_url(target_url, head_len=18, tail_len=14)
 
-    # ScraperAPI unique rotation seed to prevent IP reuse
     rotation_seed = random.randint(1000000, 9999999)
 
     params = {
@@ -1003,7 +990,6 @@ def execute_bot(bot_id: int, total_bots: int, target_url: str, slug: str, ltype:
 
     url = f"http://api.scraperapi.com?{urllib.parse.urlencode(params)}"
     
-    # Accurate browser client hints to prevent platforms flagging desktop
     headers = {
         "User-Agent": selected_ua,
         "Connection": "close"
@@ -1057,6 +1043,23 @@ def main():
     print("==================================================")
     print("      UNIVERSAL SCRAPER ENGINE RUNTIME            ")
     print("==================================================")
+    print(f"Included Countries      : {sorted(list(INC_COUNTRIES)) if INC_COUNTRIES else 'None (All Default)'}")
+    print(f"Excluded Countries      : {sorted(list(EXC_COUNTRIES)) if EXC_COUNTRIES else 'None'}")
+    print(f"Explicit Route Change   : {EXPLICIT_ROUTE_CHANGE}")
+    print("--------------------------------------------------")
+    print(" Available Datacenter Non-Premium Countries:")
+    eff_list = sorted(EFFECTIVE_COUNTRIES.items(), key=lambda x: x[1])
+    half = (len(eff_list) + 1) // 2
+    for i in range(half):
+        left_code, left_name = eff_list[i]
+        left_str = f"[{left_code}] {left_name}"
+        if i + half < len(eff_list):
+            right_code, right_name = eff_list[i + half]
+            right_str = f"[{right_code}] {right_name}"
+            print(f"  {left_str:<30} | {right_str}")
+        else:
+            print(f"  {left_str}")
+    print("==================================================")
 
     if not INPUT_LINKS:
         print("\n" + "!" * 70)
@@ -1095,7 +1098,6 @@ def main():
 
             tasks = LINK_DISPATCHER.generate_cycle_batch(worker_count)
 
-            # Assign unique User-Agents for each worker in this cycle
             used_uas_this_cycle = set()
             bot_ua_assignments = [resolve_cycle_ua(used_uas_this_cycle) for _ in range(worker_count)]
 
