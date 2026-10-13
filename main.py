@@ -766,7 +766,7 @@ DATACENTER_NAME_TO_CODE = {name.lower(): code.upper() for code, name in ALL_DATA
 
 # T1 set for route change fallback check
 T1_CODES = {
-    "FR", "DE", "NL", "ES", "IT", "PL", "SE", "BR",
+    , "ES", "IT", "PL", "SE", "BR",
     "KR", "TR", "VN", "ID", "CA", "JP", "SG"
 }
 
