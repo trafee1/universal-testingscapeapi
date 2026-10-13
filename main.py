@@ -1,4 +1,3 @@
-name=main.py
 import concurrent.futures
 from datetime import datetime
 import os
@@ -594,6 +593,7 @@ def pick_browser_for_os(os_name: str, allowed_browsers: list, native_pct: float)
 
     native_name = NATIVE_BROWSER_MAP.get(os_name, "")
     
+    # If the native browser is in the user's allowed list
     if native_name and native_name in allowed_browsers:
         other_browsers = [b for b in allowed_browsers if b != native_name]
         if other_browsers and random.random() < native_pct:
@@ -602,6 +602,7 @@ def pick_browser_for_os(os_name: str, allowed_browsers: list, native_pct: float)
             return random.choice(other_browsers)
         return native_name
 
+    # If native not allowed or not specified, choose uniformly from configured
     return random.choice(allowed_browsers)
 
 
@@ -614,6 +615,7 @@ def get_ua_for_selection(category: str, os_name: str, browser: str) -> tuple:
     if category == "desktop" and CUSTOM_DESKTOP_UAS:
         return random.choice(CUSTOM_DESKTOP_UAS), "Custom:Desktop"
 
+    # Strict Mobile Routing
     if category == "mobile":
         if os_name == "android":
             if browser == "firefox":
@@ -639,6 +641,7 @@ def get_ua_for_selection(category: str, os_name: str, browser: str) -> tuple:
 
         return random.choice(ANDROID_FF_ALL), "Android:Firefox"
 
+    # Strict Desktop Routing
     if category == "desktop":
         if os_name == "windows":
             if browser == "firefox":
@@ -685,6 +688,7 @@ def resolve_cycle_ua(used_uas_in_cycle: set) -> tuple:
     chosen_os = random.choice(list(sub_os_dict.keys()))
     allowed_browsers = sub_os_dict.get(chosen_os, ["chrome"])
     
+    # Select browser according to native vs other rule
     chosen_browser = pick_browser_for_os(chosen_os, allowed_browsers, NATIVE_RATIO)
 
     ua, label = "", ""
@@ -698,18 +702,92 @@ def resolve_cycle_ua(used_uas_in_cycle: set) -> tuple:
 
 
 # ---------------------------------------------------------
-# Country Include/Exclude Parser & Datacenter Pool
+# Full Non-Premium Datacenter Catalog & Country Resolver
 # ---------------------------------------------------------
-ALL_DATACENTER_COUNTRIES = {
-    "FR": "France", "DE": "Germany", "NL": "Netherlands", "ES": "Spain",
-    "IT": "Italy", "PL": "Poland", "SE": "Sweden", "BR": "Brazil",
-    "KR": "South Korea", "TR": "Turkey", "VN": "Vietnam", "ID": "Indonesia",
-    "CA": "Canada", "JP": "Japan", "SG": "Singapore",
-    "US": "United States", "GB": "United Kingdom", "CZ": "Czech Republic",
-    "RO": "Romania", "AE": "United Arab Emirates", "MX": "Mexico",
-    "TH": "Thailand", "PH": "Philippines",
-    "IN": "India", "SA": "Saudi Arabia", "HK": "Hong Kong", "TW": "Taiwan"
+# Full Datacenter non-premium countries working on standard credit
+ALL_DATACENTER_NON_PREMIUM = [
+    ("AE", "United Arab Emirates"),
+    ("AR", "Argentina"),
+    ("AT", "Austria"),
+    ("AU", "Australia"),
+    ("BE", "Belgium"),
+    ("BG", "Bulgaria"),
+    ("BR", "Brazil"),
+    ("CA", "Canada"),
+    ("CH", "Switzerland"),
+    ("CL", "Chile"),
+    ("CO", "Colombia"),
+    ("CZ", "Czech Republic"),
+    ("DE", "Germany"),
+    ("DK", "Denmark"),
+    ("ES", "Spain"),
+    ("FI", "Finland"),
+    ("FR", "France"),
+    ("GB", "United Kingdom"),
+    ("GR", "Greece"),
+    ("HK", "Hong Kong"),
+    ("HR", "Croatia"),
+    ("HU", "Hungary"),
+    ("ID", "Indonesia"),
+    ("IE", "Ireland"),
+    ("IL", "Israel"),
+    ("IN", "India"),
+    ("IT", "Italy"),
+    ("JP", "Japan"),
+    ("KR", "South Korea"),
+    ("MX", "Mexico"),
+    ("MY", "Malaysia"),
+    ("NL", "Netherlands"),
+    ("NO", "Norway"),
+    ("NZ", "New Zealand"),
+    ("PH", "Philippines"),
+    ("PL", "Poland"),
+    ("PT", "Portugal"),
+    ("RO", "Romania"),
+    ("RS", "Serbia"),
+    ("SA", "Saudi Arabia"),
+    ("SE", "Sweden"),
+    ("SG", "Singapore"),
+    ("SK", "Slovakia"),
+    ("TH", "Thailand"),
+    ("TR", "Turkey"),
+    ("TW", "Taiwan"),
+    ("UA", "Ukraine"),
+    ("US", "United States"),
+    ("VN", "Vietnam"),
+    ("ZA", "South Africa")
+]
+
+# Sort alphabetically by country full name
+ALL_DATACENTER_NON_PREMIUM = sorted(ALL_DATACENTER_NON_PREMIUM, key=lambda x: x[1])
+
+DATACENTER_CODE_TO_NAME = {code.upper(): name for code, name in ALL_DATACENTER_NON_PREMIUM}
+DATACENTER_NAME_TO_CODE = {name.lower(): code.upper() for code, name in ALL_DATACENTER_NON_PREMIUM}
+
+# T1 set for route change fallback check
+T1_CODES = {
+    "FR", "DE", "NL", "ES", "IT", "PL", "SE", "BR",
+    "KR", "TR", "VN", "ID", "CA", "JP", "SG"
 }
+
+def print_datacenter_countries_table():
+    print("+" + "-" * 76 + "+")
+    print(f"| {'AVAILABLE DATACENTER NON-PREMIUM COUNTRIES (FREE CREDIT)':^74} |")
+    print("+" + "-" * 37 + "+" + "-" * 38 + "+")
+    print(f"| {'Code  Full Name':<36} | {'Code  Full Name':<37} |")
+    print("+" + "-" * 37 + "+" + "-" * 38 + "+")
+
+    half = (len(ALL_DATACENTER_NON_PREMIUM) + 1) // 2
+    for i in range(half):
+        c1_code, c1_name = ALL_DATACENTER_NON_PREMIUM[i]
+        c1_str = f"[{c1_code}] {c1_name}"
+        if i + half < len(ALL_DATACENTER_NON_PREMIUM):
+            c2_code, c2_name = ALL_DATACENTER_NON_PREMIUM[i + half]
+            c2_str = f"[{c2_code}] {c2_name}"
+        else:
+            c2_str = ""
+        print(f"| {c1_str:<35} | {c2_str:<36} |")
+    print("+" + "-" * 76 + "+\n")
 
 def parse_country_config(raw_cfg: str):
     inc = set()
@@ -722,14 +800,34 @@ def parse_country_config(raw_cfg: str):
         match = re.match(r"^(include|exclude)\{([^\}]+)\}$", token, re.IGNORECASE)
         if match:
             mode = match.group(1).lower()
-            codes = [c.strip().upper() for c in match.group(2).split(",") if c.strip()]
-            if mode == "include":
-                inc.update(codes)
-            else:
-                exc.update(codes)
+            items = [c.strip().lower() for c in match.group(2).split(",") if c.strip()]
+            for item in items:
+                resolved_code = None
+                if item.upper() in DATACENTER_CODE_TO_NAME:
+                    resolved_code = item.upper()
+                elif item in DATACENTER_NAME_TO_CODE:
+                    resolved_code = DATACENTER_NAME_TO_CODE[item]
+                else:
+                    resolved_code = item.upper()
+
+                if resolved_code:
+                    if mode == "include":
+                        inc.add(resolved_code)
+                    else:
+                        exc.add(resolved_code)
         else:
-            codes = [c.strip().upper() for c in token.split(",") if c.strip()]
-            inc.update(codes)
+            items = [c.strip().lower() for c in token.split(",") if c.strip()]
+            for item in items:
+                resolved_code = None
+                if item.upper() in DATACENTER_CODE_TO_NAME:
+                    resolved_code = item.upper()
+                elif item in DATACENTER_NAME_TO_CODE:
+                    resolved_code = DATACENTER_NAME_TO_CODE[item]
+                else:
+                    resolved_code = item.upper()
+
+                if resolved_code:
+                    inc.add(resolved_code)
 
     contradictions = inc.intersection(exc)
     if contradictions:
@@ -744,31 +842,51 @@ def parse_country_config(raw_cfg: str):
 
 RAW_COUNTRY_CONF = get_env("COUNTRY", get_env("COUNTRIES", ""))
 INC_COUNTRIES, EXC_COUNTRIES = parse_country_config(RAW_COUNTRY_CONF)
-EXPLICIT_ROUTE_CHANGE = parse_bool("EXPLICIT_COUNTRIES_ROUTE_CHANGE", default=False)
 
-def build_effective_countries():
-    effective = {}
-    for code_upper, full_name in ALL_DATACENTER_COUNTRIES.items():
-        if EXC_COUNTRIES and code_upper in EXC_COUNTRIES:
+# Route fallback change setting: default False
+ROUTE_CHANGE_ON_UNAVAILABLE = parse_bool("ROUTE_CHANGE_ON_UNAVAILABLE", parse_bool("COUNTRIES_ROUTE_CHANGE", False))
+
+def build_datacenter_country_pools():
+    valid_pool = []
+    for code, name in ALL_DATACENTER_NON_PREMIUM:
+        if code in EXC_COUNTRIES:
             continue
-        if INC_COUNTRIES and code_upper not in INC_COUNTRIES:
+        if INC_COUNTRIES and code not in INC_COUNTRIES:
             continue
-        effective[code_upper] = full_name
-    return effective
+        valid_pool.append((code, code.lower(), name))
+    return valid_pool
 
-EFFECTIVE_COUNTRIES = build_effective_countries()
+VALID_COUNTRY_POOL = build_datacenter_country_pools()
 
-def pick_country():
-    if not EFFECTIVE_COUNTRIES:
-        if EXPLICIT_ROUTE_CHANGE:
-            candidates = list(ALL_DATACENTER_COUNTRIES.items())
-        else:
-            candidates = [("US", "United States")]
-    else:
-        candidates = list(EFFECTIVE_COUNTRIES.items())
+def pick_datacenter_country():
+    if VALID_COUNTRY_POOL:
+        code_upper, code_lower, name = random.choice(VALID_COUNTRY_POOL)
+        return "DC", code_upper, code_lower
 
-    code_upper, full_name = random.choice(candidates)
-    return "DC", code_upper, code_upper.lower()
+    # When selection did not work / pool is empty
+    if not ROUTE_CHANGE_ON_UNAVAILABLE:
+        # Strict policy: do not route to other countries until explicit change is true
+        if INC_COUNTRIES:
+            first_selected = sorted(list(INC_COUNTRIES))[0]
+            return "DC-LOCKED", first_selected, first_selected.lower()
+        return "DC-UNSET", "", ""
+
+    # Route change is explicitly True: fallback to non-T1 datacenter countries
+    non_t1_candidates = [
+        (c, c.lower(), n) for c, n in ALL_DATACENTER_NON_PREMIUM
+        if c not in T1_CODES and c not in EXC_COUNTRIES
+    ]
+    if non_t1_candidates:
+        c_up, c_low, _ = random.choice(non_t1_candidates)
+        return "ROUTE-CHG", c_up, c_low
+
+    # Final safe datacenter fallback
+    fallback_pool = [(c, c.lower(), n) for c, n in ALL_DATACENTER_NON_PREMIUM if c not in EXC_COUNTRIES]
+    if fallback_pool:
+        c_up, c_low, _ = random.choice(fallback_pool)
+        return "ROUTE-CHG", c_up, c_low
+
+    return "DC", "US", "us"
 
 
 # ---------------------------------------------------------
@@ -970,26 +1088,29 @@ def execute_bot(bot_id: int, total_bots: int, target_url: str, slug: str, ltype:
     if not key_obj:
         return
 
-    tier, label, code = pick_country()
+    tier, label, code = pick_datacenter_country()
     expected_credits = calculate_credits(BROWSER_RENDERING, RESIDENTIAL)
     truncated_target = truncate_url(target_url, head_len=18, tail_len=14)
 
+    # ScraperAPI unique rotation seed to prevent IP reuse
     rotation_seed = random.randint(1000000, 9999999)
 
     params = {
         "api_key": key_obj.token,
         "device_type": selected_cat,
-        "country_code": code,
         "render": BROWSER_RENDERING,
         "keep_headers": "true",
         "session_number": str(rotation_seed),
         "url": target_url
     }
+    if code:
+        params["country_code"] = code
     if RESIDENTIAL:
         params["premium"] = "true"
 
     url = f"http://api.scraperapi.com?{urllib.parse.urlencode(params)}"
     
+    # Accurate browser client hints to prevent platforms flagging desktop
     headers = {
         "User-Agent": selected_ua,
         "Connection": "close"
@@ -1043,23 +1164,9 @@ def main():
     print("==================================================")
     print("      UNIVERSAL SCRAPER ENGINE RUNTIME            ")
     print("==================================================")
-    print(f"Included Countries      : {sorted(list(INC_COUNTRIES)) if INC_COUNTRIES else 'None (All Default)'}")
-    print(f"Excluded Countries      : {sorted(list(EXC_COUNTRIES)) if EXC_COUNTRIES else 'None'}")
-    print(f"Explicit Route Change   : {EXPLICIT_ROUTE_CHANGE}")
-    print("--------------------------------------------------")
-    print(" Available Datacenter Non-Premium Countries:")
-    eff_list = sorted(EFFECTIVE_COUNTRIES.items(), key=lambda x: x[1])
-    half = (len(eff_list) + 1) // 2
-    for i in range(half):
-        left_code, left_name = eff_list[i]
-        left_str = f"[{left_code}] {left_name}"
-        if i + half < len(eff_list):
-            right_code, right_name = eff_list[i + half]
-            right_str = f"[{right_code}] {right_name}"
-            print(f"  {left_str:<30} | {right_str}")
-        else:
-            print(f"  {left_str}")
-    print("==================================================")
+
+    # 2-column available non-premium datacenter country list
+    print_datacenter_countries_table()
 
     if not INPUT_LINKS:
         print("\n" + "!" * 70)
@@ -1068,9 +1175,21 @@ def main():
         print("!" * 70 + "\n")
         sys.exit(1)
 
+    # Country Audit Summary Log for Railway Dashboard
+    inc_display = ", ".join(sorted(list(INC_COUNTRIES))) if INC_COUNTRIES else "None (ALL allowed)"
+    exc_display = ", ".join(sorted(list(EXC_COUNTRIES))) if EXC_COUNTRIES else "None"
+    active_pool_display = f"{len(VALID_COUNTRY_POOL)} country code(s) active"
+
+    print("---------------- COUNTRY CONFIGURATION -----------")
+    print(f"Included Countries      : {inc_display}")
+    print(f"Excluded Countries      : {exc_display}")
+    print(f"Working Datacenter Pool : {active_pool_display}")
+    print(f"Route Change Fallback   : {ROUTE_CHANGE_ON_UNAVAILABLE} (Default: False)")
+    print("--------------------------------------------------")
+
     print(f"Total Active Keys       : {len(pool.active_keys)}")
     print(f"Browser Rendering       : {BROWSER_RENDERING}")
-    print(f"Residential Proxies     : {'ENABLED (premium=true)' if RESIDENTIAL else 'DISABLED (Standard DataCenter)'}")
+    print(f"Residential Proxies     : {'ENABLED (premium=true)' if RESIDENTIAL else 'DISABLED (Standard DataCenter Free Credit)'}")
     print(f"Est. Credits Per Hit    : ~{calculate_credits(BROWSER_RENDERING, RESIDENTIAL)} credits")
     print(f"Active Device Hierarchy : {DEVICE_TREE}")
     print(f"Native Browser Weight   : {int(NATIVE_RATIO * 100)}% Native / {int((1.0 - NATIVE_RATIO) * 100)}% Others")
@@ -1098,6 +1217,7 @@ def main():
 
             tasks = LINK_DISPATCHER.generate_cycle_batch(worker_count)
 
+            # Assign unique User-Agents for each worker in this cycle
             used_uas_this_cycle = set()
             bot_ua_assignments = [resolve_cycle_ua(used_uas_this_cycle) for _ in range(worker_count)]
 
