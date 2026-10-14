@@ -1115,6 +1115,7 @@ def execute_bot(bot_id: int, total_bots: int, target_url: str, slug: str, ltype:
         "render": BROWSER_RENDERING,
         "keep_headers": "true",
         "session_number": str(rotation_seed),
+        "follow_redirect": "false",
         "retry": "false",
         "url": target_url
     }
